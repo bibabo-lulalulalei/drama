@@ -1,0 +1,14 @@
+# Local credentials
+.env
+**/.env
+.env.*
+**/.env.*
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Local test and OS artifacts
+.pytest_cache/
+.DS_Store
+Thumbs.db
