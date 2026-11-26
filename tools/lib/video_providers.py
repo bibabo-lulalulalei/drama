@@ -80,10 +80,28 @@ def select_adapter(queue: dict, config: dict) -> ModuleType:
 
 
 def adapter_binding(adapter: ModuleType) -> dict:
-
     source = Path(adapter.__file__).resolve()
+    tools_root = source.parent
+    declared = getattr(adapter, "EXECUTION_DEPENDENCY_FILES", ())
+    if not isinstance(declared, (tuple, list)) or any(
+            not isinstance(value, str) or not value for value in declared):
+        raise ProviderSelectionError("adapter.EXECUTION_DEPENDENCY_FILES 必须是相对路径数组")
+    dependencies = {source.name, *declared}
+    digest = hashlib.sha256()
+    for relative in sorted(dependencies):
+        candidate = (tools_root / relative).resolve()
+        try:
+            normalized = candidate.relative_to(tools_root).as_posix()
+        except ValueError:
+            raise ProviderSelectionError(f"adapter 执行依赖越出 tools 目录: {relative}") from None
+        if not candidate.is_file():
+            raise ProviderSelectionError(f"adapter 执行依赖不存在: {relative}")
+        digest.update(normalized.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(candidate.read_bytes())
+        digest.update(b"\0")
     return {
         "video_provider": adapter.PROVIDER_ID,
         "video_provider_adapter_version": str(adapter.ADAPTER_VERSION),
-        "video_provider_adapter_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "video_provider_adapter_sha256": digest.hexdigest(),
     }

@@ -8,7 +8,7 @@
 
 - 镜头数量、运镜阈值、时间轴和 planned seam：`storyboard.md`。
 - 每集唯一导演总控卡及表演、声音、色彩、风格合同：`storyboard.md`。
-- 人物、场景、道具、音色和风格的 approved 版本：`assets.md`；KF 的 approved 版本：`keyframes.md`。
+- 人物、需要跨镜复现的群众、场景、道具、音色和风格的 approved 版本：`assets.md`；KF 的 approved 版本：`keyframes.md`。
 - 批次路径、文件命名和 manifest schema：`manifests.md`。
 - H3 成稿的字段结构、模式选择、参考标签和台词格式：同级 `h3-prompt-writing` Skill（SKILL.md 及其 base-en.txt、ref-en.txt）；本文件只规定 drama 交接包和两层之间的映射，不复制其成稿规则。
 - 生成后 FRM、接缝窗口和内部连续性记录：本文件“第二部分：生成后抽帧与连续性”。
@@ -19,7 +19,7 @@
 
 ### 关键帧术语统一
 
-关键帧只指 `keyframes.md` 定义的集级剧情高光 KF：并非每个 SEG 都有，不承担首帧或尾帧职责。首段起点由分镜初始状态定义；非首段先读取 planned `SEAM`，`continuous` 必须由上一段真实 `tail FRM` 承接，`elliptical` 则按明确的新时空或新认知起点开始。当前 SEG 命中分镜已规划高光时才传入对应 KF。
+本文件中任何遗留的 `start KF`、`story KF` 或 `tail KF` 表述均不再作为执行要求。关键帧只指 `keyframes.md` 定义的集级剧情高光 KF：并非每个 SEG 都有，不承担首帧或尾帧职责。首段起点由分镜初始状态定义；非首段先读取 planned `SEAM`，`continuous` 必须由上一段真实 `tail FRM` 承接，`elliptical` 则按明确的新时空或新认知起点开始。当前 SEG 命中分镜已规划高光时才传入对应 KF。
 
 视频模型与执行后端分开：模型能力仍由下表和 `tools/h3.json` 决定，实际通过哪个 provider 执行由 `video-provider.md` 的注册表和用户确认决定。当前选中 provider 的专属文档必须在实际执行前完整读取。
 
@@ -40,7 +40,9 @@
 
 ## 执行顺序
 
-视频批次的用户可见确认内容必须按 `video-batch-confirmation.md` 编译；`interaction-ask-video-clarification-ref.md` 只负责随后 `interaction.ask` 的调用结构与确认有效性。
+视频批次的用户可见确认内容必须按 `video-batch-confirmation.md` 编译；`interaction-ask-video-clarification-ref.md` 只负责随后的宿主确认路由与确认有效性。
+本文件中任何把“合并参数确认表、数量、逐段时长或本批次五列分镜表”归为本文件或 `interaction-ask-video-clarification-ref.md` 定义内容的旧句均废止；这些展示内容只以 `video-batch-confirmation.md` 为准。
+“视频片段批次生成确认”是本文件对“两张批次展示表 + 确认文件中的视频生成确认”的组合简称，不是确认文件中的章节名。
 
 1. 完整模式从 `project_data_card.json`、每集唯一导演总控卡、十五列详细分镜、视频片段执行表、片段衔接卡、连续性账本和已批准 `keyframe_manifest_ep_N.json` 编译 `SEGxxx` Prompt。轻量模式只从已确认规划、内部十五列详细分镜和真实可用的用户素材编译唯一视频 Prompt，不得伪造其他上游文件、资产或 KF 引用。
 2. 盘点本次实际媒体输入，按工具路由选择 `text_to_video`、`image_to_video`、`media_to_video` 或 `video_edit`，并按下文“H3 模式映射”同步确定 `h3_mode`（T2VA/I2VA/FL2VA/L2VA/Ref2VA）。
@@ -49,8 +51,8 @@
 5. 主 Agent 以下文“H3 交接包”列出的完整 drama 产出物作为 `args`，实际调用 `Skill(skill="h3-prompt-writing", args=<完整交接包>)`；由该 Skill 按已确定的 `h3_mode` 读取其对应指南（基础模式读 base-en.txt，Ref2VA 读 ref-en.txt）并重写为 H3 英文成稿。主 Agent 只保存该次调用的产出为 `提示词_SEGxxx_vNN_ep_N.md`（`compiled_prompt_file`）并计算 `prompt_sha256`，不得绕过调用自行仿写。重写只做语言、结构和标签转换，不得改变剧情、镜头、台词原文、素材职责或时长；底稿与成稿的媒体槽位顺序必须一一对应。
 6. 对 H3 成稿做一次客观校验：固定字段/六段结构与 `h3_mode` 相符、首行对齐指令正确（I2VA/FL2VA/L2VA）、`<Picture N>/<Video N>/<Audio N>` 与真实槽位 order 完全一致、每条台词按本文件“人声与文字合同”仅规范标点/空白，字词、词序、说话人不变且恰好落入一个 `<d></d>` 块，块数等于台词条数、无中文媒体标记、无【】字幕标识、描述总时长与 SEG 整数秒时长一致。通过后把 `prompt_preflight.h3_structure_verified` 写为 `true`，并登记 `h3_conversion`：`skill_name=h3-prompt-writing`、`invocation_channel=host_skill_tool`、`invoked=true`、带时区 `converted_at`、`source_draft_sha256` 与 `compiled_prompt_sha256`。两个哈希必须分别匹配当前 `director_draft_file` 和 `compiled_prompt_file` 的真实字节；任何一层改动后，旧转换记录失效，必须重新真实调用。除合规、授权、真实性、工具能力、缺失输入或客观校验失败等硬阻塞外，校验后进入确认流程，不进入反复润色循环。
 7. 完整模式只对当前一个新 SEG 完成步骤 3-6，再按 `delegation.md` 填写固定 `串行执行.json` 并通过 `video_run.py` 离线预检。`continuous` 段必须先取得上一段真实 tail 和观察记录，不预编译后续段。轻量模式首次生成仍复用规划页确认，返修重新确认。
-8. 主 Agent 按 `video-batch-confirmation.md` 展示当前 SEG 的一张参数表和一张五列表，再按 `interaction-ask-video-clarification-ref.md` 取得一次 `generate`。参数表把“视频模型”和“视频生成后端”分开。确认记录写 `execution_mode: serial_real_tail_chain`、`run_plan_file` 和 `run_plan_sha256`，起止索引均指向当前 SEG。
-9. 主 Agent 按 `delegation.md` 委派当次固定运行，每次最多一个新 `generate`。预绑定、段间边界、异常停止、退出看图、登记和交付均以该文件为唯一权威；provider 专属恢复和电源细节只读对应 provider 文档。当前段交付后返回步骤 1 编译下一新 SEG，并重新确认。
+8. 完整模式由主 Agent 按 `video-batch-confirmation.md` 展示当前 SEG 的一张参数表和一张五列表，再按 `interaction-ask-video-clarification-ref.md` 取得一次 `generate`。参数表把“视频模型”和“视频生成后端”分开。确认记录写 `execution_mode: serial_real_tail_chain`、`run_plan_file` 和 `run_plan_sha256`，起止索引均指向当前 SEG。轻量模式首次生成直接复用规划页对唯一视频的 `generate`，不重复展示两张表或再次确认；轻量返修/重生才重新执行本步。
+9. 主 Agent 按 `delegation.md` 启动当次固定运行：有 subagent 时委派启动并等待，没有时主 Agent 启动同一固定进程；每次最多一个新 `generate`。预绑定、段间边界、异常停止、退出看图、登记和交付均以该文件为唯一权威；provider 专属恢复和电源细节只读对应 provider 文档。完整模式当前段交付后返回步骤 1 编译下一新 SEG，并重新确认；轻量模式只有唯一视频，不进入下一段循环。
 10. 本集仍有未生成 SEG 时保持 `in_progress`。全部片段真实生成、登记并交付后，`target_stage=final` 执行拼接确认，`target_stage=video` 做普通阶段确认；轻量模式交付唯一最终视频后进入成片普通确认。
 
 ## 批次合同
@@ -75,7 +77,7 @@
 
 ## 批次确认展示
 
-合并参数确认表、数量、逐 SEG 时长、五列分镜表、展示顺序与记录要求全部读取 `video-batch-confirmation.md`。
+合并参数确认表、数量、逐 SEG 时长、五列分镜表、展示顺序与记录要求全部读取 `video-batch-confirmation.md`。本文件不复制其 schema 或模板；任何历史重复版本均无效。
 
 ## 模型、时长与画幅
 
@@ -103,7 +105,7 @@
 
 1. **读取五类来源**：读取项目数据卡与 approved 资产的稳定身份；上一段已保存视频；上一段 `start|scene|tail FRM` 及主 Agent 看图观察；当前 `SEAM` 的 `seam_mode|required_invariants|permitted_deltas|transition_anchor`；当前新 SEG 分镜的首态、动作、台词、状态变化和 `reference_input_plan`。`continuous` 缺上一段真实尾帧、来源哈希或观察记录时，禁止编译确认和提交当前段；`elliptical` 不把尾帧设为必需输入，但接缝合同、新起点或必要状态资产缺失时仍返回上游补齐。
 2. **建立继承表**：逐项列出剧情因果与已发生动作、角色身份、服装/妆发/伤痕、屏幕位置/朝向/视线/姿势、产品与包装、道具归属/开合/接触、场景拓扑/固定陈设、主光方向/色温、摄影机轴线/运动、声音主体/音色/环境声/BGM，以及未决钩子。每项同时写“上游锁定值、上一段真实尾值、当前段计划值、允许变化、采用值”。
-3. **按优先级比较**：身份、授权、用户锁定项和 `required_invariants` 不能被真实生成偏差改写；上一段真实尾帧作为当前段真实图片起点和 0 秒基准；`permitted_deltas` 只允许计划内变化。小偏差在不改写已发生剧情时调整当前段承接；身份、因果、道具归属、轴线或未允许状态的大冲突返回最早责任上游修订并履行变更确认，不伪写一致，也不自动重生上一段。
+3. **按优先级比较**：身份、授权、用户锁定项和 `required_invariants` 不能被真实生成偏差改写；上一段真实尾帧作为当前段真实图片起点和 0 秒基准；`permitted_deltas` 只允许计划内变化。若真实尾值与计划值只存在可剪切的小偏差，采用真实尾值作为 0 秒基准并在动作过程中回到计划；若偏差改变身份、因果、道具归属、轴线或未允许状态，不伪写一致，记录冲突并返回最早责任上游修订承接。不得自动重生上一段。
 4. **选择真实输入**：`continuous` 真实传入上一段 tail FRM；Ref2VA 使用 `source_type: frame`、`role: previous_tail_reference` 并省略 `frame_position`，在 0 秒事实中继承该帧但不声称 API 硬首帧；只有仅 1 张真实 tail 作实际开场的 I2VA 才用 `previous_tail_as_start_frame` 和 `frame_position: first`。`elliptical` 不强制传 tail FRM，按新起点选择角色身份/状态、SCN、PROP/状态、本段高光 KF 和必要风格图。按工具实际上传顺序重排 `reference_inputs[].order` 和 `<图片N>`；任何当前段已声明 required 的输入无法传入时停止，不得用文字假装已继承。
 5. **写入五段底稿**：第一段写每个输入职责和 0 秒真实基准；第二段写稳定身份、当前状态、场景、光线和声音事实；第三段第一时间窗先写上一段真实尾态，再写“从该相位继续”的动作路径、反馈和新结果；第四段写当前 SEAM 的入点、段内切点和当前段尾态；第五段复写整段不可漂移项与禁区。每一项继承事实只能有一个权威来源，不在不同段落写互相冲突的值。
 6. **写回执行记录**：在当次 queue/确认快照保存真实固定输入、真实 tail `reference_inputs`、数据卡 revision、状态资产和继承摘要，不使用未来 tail 或 `planned_reference_inputs` 替代。任务/run-state、后续 FRM/SEAM 的登记和交付时点按 `delegation.md`。
@@ -112,7 +114,7 @@
 
 尾帧参考规则：
 
-- `continuous` 非首段必须把上一段真实尾帧和分镜声明为必需的角色、场景、道具/状态图片放入视频工具的真实图片请求字段；`elliptical` 非首段只传新起点所需图片。本段命中已规划高光 KF 时再传对应 KF。缺任一分镜已声明必需的图片时停止调用。
+- `continuous` 非首段必须把上一段真实尾帧和分镜声明为必需的角色、需要复现的群众、场景、道具/状态图片放入视频工具的真实图片请求字段；`elliptical` 非首段只传新起点所需图片。本段命中已规划高光 KF 时再传对应 KF。缺任一分镜已声明必需的图片时停止调用。
 - 使用 `image_edit` 处理尾帧时，原始尾帧和编辑候选分开保存；只有视频工具真正接收该图片时才算“尾帧连续性输入”；Ref2VA 用 `previous_tail_reference`，仅单图 I2VA 实际开场才称首帧输入。
 - 单靠文字承接不能保证像素级一致，批次确认和内部记录必须明确该风险。
 
@@ -139,11 +141,10 @@
   "segments": [{
     "segment_id": "SEG001",
     "crowds": [],
-    "request_snapshot_file": "",
     "episode_segment_index": 1,
     "duration_s": 12,
     "duration_exception_reason": "",
-    "planned_shot_count": 10,
+    "planned_shot_count": 1,
     "shot_density_exception_reason": "",
     "camera_variety_exception_reason": "",
     "observable_state_changes": ["发现门锁异常", "抬头确认门后有人"],
@@ -179,7 +180,10 @@
     "subtitle_render_stage": "disabled"
   }],
   "reference_basis": [
-    {"asset_id": "CHR001_v01", "role": "identity_reference", "passed_to_tool": true}
+    {"asset_id": "CHR001_v01", "role": "identity_reference", "passed_to_tool": true},
+    {"asset_id": "SCN001_v01", "role": "scene_layout", "passed_to_tool": true},
+    {"asset_id": "STYLE001_v01", "role": "style_reference", "passed_to_tool": true},
+    {"keyframe_id": "KF001_v01", "role": "segment_highlight_reference", "passed_to_tool": true}
   ],
   "reference_frame_mode": "actual_image_input",
   "reference_frame_path": "",
@@ -190,8 +194,35 @@
       "source_id": "CHR001_v01",
       "file": "shared/03_资产/角色/角色_CHR001_林远_基准状态_v01.png",
       "role": "identity_reference",
-      "adopt": "同一角色的面部、体型和当前服装",
+      "adopt": "林远的面部、体型和当前服装",
       "exclude": "设定板排版、多角度复制与无关背景"
+    },
+    {
+      "order": 2,
+      "source_type": "asset",
+      "source_id": "SCN001_v01",
+      "file": "shared/03_资产/场景/场景_SCN001_诊室门区_基准_v01.png",
+      "role": "scene_layout",
+      "adopt": "诊室门、走廊方向和主光位置",
+      "exclude": "四宫格排版与其他视角的重复空间"
+    },
+    {
+      "order": 3,
+      "source_type": "asset",
+      "source_id": "STYLE001_v01",
+      "file": "shared/03_资产/风格/风格_STYLE001_全局_v01.png",
+      "role": "style_reference",
+      "adopt": "色彩关系、线条、光影与材质",
+      "exclude": "风格板排版和与当前剧情无关的构图元素"
+    },
+    {
+      "order": 4,
+      "source_type": "keyframe",
+      "source_id": "KF001_v01",
+      "file": "episodes/ep_1/03_资产/关键帧/关键帧_KF001_SEG001_highlight-1_v01_ep_1.png",
+      "role": "segment_highlight_reference",
+      "adopt": "钥匙接触门锁时的人物位置、构图和动作相位",
+      "exclude": "把高光静态构图误作本段硬首帧"
     }
   ],
   "audio_input_supported": false,
@@ -201,15 +232,15 @@
   "ordered_keyframe_control_supported": false,
   "native_audio_supported": true,
   "generation_route": {
-    "decision": "new_segment|regenerate_segment|return_upstream",
-    "reason": "",
-    "continuity_method": "",
-    "fallback": ""
+    "decision": "new_segment",
+    "reason": "当前首段已确认且真实输入齐备",
+    "continuity_method": "首段建立新起点",
+    "fallback": "必需输入缺失时返回资产或分镜阶段"
   }
 }
 ```
 
-上例的 `shot_plan` 只展示单条字段结构；实际批次中数组长度必须严格等于 `planned_shot_count`，并逐镜填写，不得复制同一推拉模板凑数。
+实际批次中 `shot_plan` 数组长度必须严格等于 `planned_shot_count`，并逐镜填写，不得复制同一推拉模板凑数。这个单 SEG 批次的顶层 `reference_inputs` 就是该段的实际输入清单，写入 `video_manifest` 时原样放入对应 `segments[].reference_inputs`；`reference_basis` 只是同一传图决策的摘要，不代表另一批图片或另一套输入 schema。
 
 上例是“只有普通参考图片输入”的 `image_to_video`，对应 `h3_mode: "Ref2VA"`。其他模式沿用相同的 SEG、两层 Prompt、预检、镜头、声音和质量目标结构，但输入字段与 `h3_mode` 按工具路由变化：
 
@@ -224,9 +255,9 @@
 
 `incoming_episode_seam` 只在 `ep_2` 及以后各集的 `episode_segment_index: 1` 上必填，结构与 `episode_seams.json` 对应记录一致；它不替代集内 `incoming_seam`。后续集首段的集内 `incoming_seam` 仍写 `START/not_applicable`，跨集状态由 `incoming_episode_seam` 单独承载。
 
-当前 SEG 存在批准图片资产时，全部出场角色身份图和分镜声明为必需的场景、道具/状态图必须进入 `reference_basis` 并由视频工具真实接收；当前 SEG 命中已规划高光 KF 时再加入该 KF。不得把多张静态图无差别同时输入，避免模型退化为定格或幻灯片。`continuous` 非首段还必须加入上一段实际 `tail FRM`；`elliptical` 不强制加入。
+当前 SEG 存在批准图片资产时，全部出场角色身份图和分镜声明为必需的复现群众、场景、道具/状态图必须进入 `reference_basis` 并由视频工具真实接收；当前 SEG 命中已规划高光 KF 时再加入该 KF。不得把多张静态图无差别同时输入，避免模型退化为定格或幻灯片。`continuous` 非首段还必须加入上一段实际 `tail FRM`；`elliptical` 不强制加入。
 
-视频阶段继承图片是强制输入，不是 Prompt 文本引用：人物资产、人物状态、头部锚点、场景资产、场景状态、道具/道具状态、STYLE、关键帧、视频输入图、返修图和上一段 FRM，只要被当前 SEG 的出场角色、当前状态、所在场景、关键道具、已规划高光、返修目标、视频承接或风格合同命中，就必须作为真实图片输入传入 `image_to_video` 或 `media_to_video`。`reference_basis` 与 `reference_inputs` 必须逐项登记实际文件、职责和 `passed_to_tool: true`；只在 Prompt 中写资产 ID、只登记 source_id、只在固定 JSON 中描述引用但工具请求未带图片，均视为未传入并阻断调用。图片输入超出工具上限时，必须先拆分 SEG、减少同段主体或返回可用工具方案；不得删除已命中的人物身份/状态图、头部锚点、SCN/场景状态、必需 PROP/状态图、KF、返修图或承接 FRM 后继续生成。
+视频阶段继承图片是强制输入，不是 Prompt 文本引用：人物资产、人物状态、头部锚点、需要跨镜复现的群众参考、场景资产、场景状态、道具/道具状态、STYLE、关键帧、视频输入图、返修图和上一段 FRM，只要被当前 SEG 的出场角色、复现群体、当前状态、所在场景、关键道具、已规划高光、返修目标、视频承接或风格合同命中，就必须作为真实图片输入传入 `image_to_video` 或 `media_to_video`。`reference_basis` 必须逐项登记职责和 `passed_to_tool: true`，`reference_inputs` 必须逐项登记实际文件、顺序、职责和采用/剥离边界；只在 Prompt 中写资产 ID、只登记 source_id、只在固定 JSON 中描述引用但工具请求未带图片，均视为未传入并阻断调用。图片输入超出工具上限时，必须先拆分 SEG、减少同段主体或返回可用工具方案；不得删除已命中的人物身份/状态图、头部锚点、复现群众图、SCN/场景状态、必需 PROP/状态图、KF、返修图或承接 FRM 后继续生成。
 
 使用图片输入时，`reference_inputs` 按真实调用顺序逐张登记。每项必须有连续 `order`、稳定 `source_id`、项目内真实文件和唯一 `role`；至少覆盖分镜声明的必需参考、全部出场角色的 `identity_reference`、命中的 `character_state_reference`/`face_anchor_reference`、当前主要场景的 `scene_layout`/`scene_state_reference`、必需道具的 `prop_structure`/`prop_state_reference`，`continuous` 非首段在 Ref2VA 增加 `previous_tail_reference`（`source_type: frame`，无 `frame_position`），仅单图 I2VA 实际开场才增加 `previous_tail_as_start_frame`。本段命中已规划高光 KF 时使用 `segment_highlight_reference`；复现群众图使用 `crowd_reference` 并按 `crowds.md` 绑定；返修或重生基于已生成/已返修的视频输入图时使用 `repair_reference` 或 `video_input_reference`。实际首尾帧分别使用 `first_frame|last_frame`，并填写匹配的 `frame_position: first|last`；`previous_tail_as_start_frame` 仅用于单图 I2VA，必须写 first；Ref2VA 的 `previous_tail_reference` 不填该字段。普通身份、场景、高光、群众图片省略 `frame_position`，不能冒充首尾帧。图片总数不得超过工具上限。
 
@@ -285,7 +316,7 @@
 
 ### 工具路由到 H3 模式
 
-drama 工具枚举与 H3 模式一一对应，`h3_mode` 写入视频 manifest 并与 `tool_mode` 保持兼容：
+drama 工具枚举与 H3 模式的兼容映射如下，`h3_mode` 写入视频 manifest 并与 `tool_mode` 保持兼容：
 
 | drama 工具枚举 | `h3_mode` | 选择规则 |
 |---|---|---|
@@ -332,7 +363,9 @@ H3 成稿的描述总时长必须与 SEG 时长一致，切点时间使用 `MM:S
 
 Ref2VA 中文底稿也可使用严格的结构化序列化：非空输入与连续性前置段，加上依次排列的 `## integrated_multimodal_description`、`## overall_soundscape`、`## non_diegetic_music`、`## dialogue_refs` 四个二级标题，合计五个顶层信息段；不得增删或调换标题。该形式使用与真实槽位一致的 `<Picture N>/<Video N>/<Audio N>` 标记，并在 `dialogue_refs` Markdown 表的 `spoken_text` 列逐句登记无标点台词，替代自然段形式的花括号。两种形式都只是中文导演源的序列化方式；实际提交的英文 H3 成稿仍按 h3-prompt-writing 的固定结构、槽位与 `<d>` 台词硬门校验。
 
-底稿必须原样保存到当前 SEG 的 `director_draft_file`；经 `h3-prompt-writing` 重写后的 H3 英文成稿保存到 `compiled_prompt_file`，后者才是实际提交给视频模型的文本。底稿必须从已校验的完整分镜编译，不能临时重新发明镜头、台词或素材关系。分镜中的每个镜头必须在第三段恰好编译一次，不能遗漏、重复或被摘要合并；内部 SHOT ID 只用于 manifest 覆盖校验，不强制写入提交给模型的自然语言文本。
+自然五段底稿的逐镜时间轴位于第三段，台词按第三项的自然段规则书写。结构化 Ref2VA 底稿的每个镜头必须恰好进入 `integrated_multimodal_description` 一次，声音桥、尾态与禁区仍分别由对应固定字段承接；完整台词只由 `dialogue_refs.spoken_text` 承载，不在其他字段重复套写自然段的 `{完整文本}`。两种格式必须承载相同的镜头、动作、台词、素材职责和时长事实，不得因序列化形式不同而增删或合并镜头。
+
+底稿必须原样保存到当前 SEG 的 `director_draft_file`；经 `h3-prompt-writing` 重写后的 H3 英文成稿保存到 `compiled_prompt_file`，后者才是实际提交给视频模型的文本。底稿必须从已校验的完整分镜编译，不能临时重新发明镜头、台词或素材关系。自然五段底稿中的每个镜头必须在第三段恰好编译一次，结构化 Ref2VA 底稿则按上一条进入 `integrated_multimodal_description`；两者都不能遗漏、重复或被摘要合并。内部 SHOT ID 只用于 manifest 覆盖校验，不强制写入提交给模型的自然语言文本。
 
 1. **输入资产定位与 0 秒基准**：说明 `<图片1>`、`<视频1>`、`<音频1>` 分别承担什么职责；明确哪张图是真实首帧、参考图或上一 SEG 的真实尾帧。没有真实输入时不得虚构素材编号。`continuous` 后续片段明确上一段真实尾帧是本段 0 秒视觉基准；`elliptical` 后续片段明确转场锚点及允许变化。
 2. **参考主体绑定与生成目标**：锁定人物、产品、包装、Logo、场景和已确认的视觉风格；完整模式从唯一导演总控卡继承，轻量模式从已确认规划和十五列分镜继承。写明必须保持的身份、服装、妆发、状态、空间、光线、材质和声音事实；排除无关人物、错误字幕、水印、竞品元素及参考图中不采用的内容，并写清本段生成目标。
@@ -340,7 +373,7 @@ Ref2VA 中文底稿也可使用严格的结构化序列化：非空输入与连�
 4. **转场与尾态收束**：逐切点写“前镜结束状态 -> 为什么此时切 -> 使用什么承接锚点 -> 后镜开始状态”，并写明切后增加的新信息。锚点可来自动作、方向、主体位置、视线、形状、光色、声音、文字、遮挡或产品状态；不得只写“自然转场”“快速切换”。非最终 SEG 留下可被下一段使用的角色、产品、道具、场景、动作和声音状态；最终 SEG 完成动作、声音和人物/产品/品牌落点。
 5. **全片一致性与禁区**：复写全片必须保持的人物身份、产品与包装、服装妆发、道具、场景、光线、材质、音色和视觉风格；禁止随机字幕、乱码、水印、额外主体、产品变形、身份漂移、手部异常、闪烁和无来源特效。抽帧是生成后的检查动作，不写成模型要执行的画面内容。
 
-五段职责属于导演编写规则，只约束第一层底稿。完整模式由主 Agent 对照已确认分镜和唯一导演总控卡人工复核；轻量模式只对照内部十五列分镜复核。英文 H3 成稿返回后，主 Agent 必须再对照中文底稿逐镜回读实际提交文本，核对动作方向与完整动作桥、景别/机位/运镜、表演与听者反应、声音与色彩、连续性尾态、禁止项和“画面人物不开口”等否定指令；发现语义缺失、反转或弱化时先修成稿并重新执行转换与哈希预检，不得只凭结构通过提交。`drama_lint.py` 对自然段底稿检查五段数量、中文媒体标记和花括号台词，对结构化 Ref2VA 底稿检查固定前置段、四个有序标题和 `dialogue_refs.spoken_text` 逐句对应，并检查文件路径；对 H3 成稿检查固定字段、H3 标记与真实槽位、`<d>` 台词块和文件哈希。客观 lint 与上述两层人工复核各执行一次，互不替代。
+五段职责属于导演编写规则，只约束第一层底稿。完整模式由主 Agent 对照已确认分镜和唯一导演总控卡人工复核；轻量模式只对照内部十五列分镜复核。英文 H3 成稿返回后，主 Agent 必须再对照中文底稿逐镜回读实际提交文本，核对动作方向与完整动作桥、景别/机位/运镜、表演与听者反应、声音与色彩、连续性尾态、禁止项和“画面人物不开口”等否定指令；发现语义缺失、反转或弱化时先修中文导演底稿及交接包，再真实调用 `h3-prompt-writing`，只保存新返回的英文成稿，并重新计算两层血缘与成稿哈希、执行预检，不得只凭结构通过提交。`drama_lint.py` 对自然段底稿检查五段数量、中文媒体标记和花括号台词，对结构化 Ref2VA 底稿检查固定前置段、四个有序标题和 `dialogue_refs.spoken_text` 逐句对应，并检查文件路径；对 H3 成稿检查固定字段、H3 标记与真实槽位、`<d>` 台词块和文件哈希。客观 lint 与上述两层人工复核各执行一次，互不替代。
 
 目标画幅通过所选 provider 的真实请求参数及已确认交付方案处理，不在底稿或成稿中写比例。没有音频输入时，底稿不写 `<音频N>`，只逐字复用 `voice_anchor`，H3 成稿把该锚点译为英文说话人识别短语并在对应 `<d>` 块前给出；使用已批准 VOICE 时必须路由到 `media_to_video`（H3 模式 Ref2VA），按真实槽位顺序在成稿中使用 `<Audio N>`。
 
@@ -355,13 +388,13 @@ Ref2VA 中文底稿也可使用严格的结构化序列化：非空输入与连�
 - 使用已批准 VOICE 音频时必须路由到 `media_to_video`；`audio_inputs` 保存真实资源与文件，`voice_inputs` 映射 `voice_id/resource_id`。已传 VOICE 是音色权威，文字锚点不得与其冲突。
 - 有任何人声的片段必须先确认 `native_audio_supported: true`；不支持时停止并返回参数确认，由用户决定等待 H3 能力恢复或接受无声/后配方案，禁止自主换模型。
 - 设置 `speech_mode: native_required`，`speech_lines` 的 `type` 只能是 `on_screen_dialogue`、`narration`、`voiceover`、`inner_monologue`；每句同时保存 `voice_id`、`voice_anchor`、原始 `source_text`、带标点 `display_text` 和无标点 `spoken_text`，用 `delivery_intent`、`pause_plan`、`emotion`、`emphasis_words` 表达表演增量。
-- 四层人声均由视频模型原生生成：自然段底稿使用 `{完整文本}`，结构化 Ref2VA 底稿在 `dialogue_refs.spoken_text` 表逐句登记；H3 成稿统一转为 `<d>[语言] 完整文本</d>`。出镜对白驱动指定角色口型，其余三类在两层中都明确“画面人物不开口”，成稿按 h3-prompt-writing 规则写 `says in an off-screen voiceover` 并声明嘴唇闭合。
+- 四类人声均由视频模型原生生成：自然段底稿使用 `{完整文本}`，结构化 Ref2VA 底稿在 `dialogue_refs.spoken_text` 表逐句登记；H3 成稿统一转为 `<d>[语言] 完整文本</d>`。出镜对白驱动指定角色口型，其余三类在两层中都明确“画面人物不开口”，成稿按 h3-prompt-writing 规则写 `says in an off-screen voiceover` 并声明嘴唇闭合。
 - 自然段底稿中每条无标点 `spoken_text` 必须逐字以 `{spoken_text}` 出现；结构化 Ref2VA 底稿必须在 `dialogue_refs` 表的 `spoken_text` 列逐字列出全部台词，不得多句或少句。H3 成稿允许按 H3 指南规范标点和空白，每条台词仍恰好对应一个 `<d></d>` 块，字词、词序、说话人和句数必须与 `speech_lines` 完全一致，不得翻译、增删、拆句或合句。`spoken_text` 本身仍保持 `delivery.md` 的无标点格式。结构化字段存在但两层文本找不到对应台词，按“台词未提交给模型”阻断。
-- 出镜对白必须在底稿同一镜头写“角色名真实开口说出{完整文本}”，成稿在同一镜头写该说话人 `(Sx)` 开口并附 `<d>` 块；旁白、画外音和内心独白必须写声音主体、类型、完整文本以及“画面人物不开口”。`【】` 是字幕源标识，只允许出现在底稿，禁止代替 `{}` 或 `<d>` 进入 H3 成稿。
+- 自然段底稿的出镜对白必须在同一镜头写“角色名真实开口说出{完整文本}”；结构化 Ref2VA 底稿在同一镜头的 `integrated_multimodal_description` 写真实开口及说话人，在对应 `dialogue_refs.spoken_text` 行登记完整文本，不重复花括号。H3 成稿在同一镜头写该说话人 `(Sx)` 开口并附 `<d>` 块；两种底稿的旁白、画外音和内心独白都必须写声音主体、类型、完整文本以及“画面人物不开口”。`【】` 是字幕源标识，只允许出现在底稿，禁止代替 `{}` 或 `<d>` 进入 H3 成稿。
 - H3 成稿的说话人编号按目标视频实际发声事件顺序分配 `(S1)`、`(S2)` 并跨镜头复用；传入 VOICE 音频时，`<Audio N>` 定义中复用该说话人编号，英文音色描述只译写数据卡 `voice_anchor` 事实，不得新增用户未设定的身份、年龄或口音。
 - 字幕与人声独立：默认最终 `subtitle_enabled: false`，同时视频调用固定 `video_generation_subtitles: false`；只有用户明确要求字幕时，才在成片阶段按 `subtitle_render_stage: final_mediakit_burn` 处理。必须保留全部计划人声，视频画面中禁止模型直接生成逐句字幕。
 - 生成后逐句试听；静音、漏句、串角色、类型错误、截断、画外音触发人物张嘴或出镜口型明显错误只记录为内部返修风险和后续用户主动修改时的建议，不自动重生或编辑已返回的可渲染视频。
-- 完整模式只为实际声音主体生成或复用稳定 VOICE 音色资产；无发声职责的群众不建 VOICE。轻量模式直接继承已确认音色描述，可以使用真实可用且已确认的既有/用户音频，不新增独立音色资产阶段；需要独立生产和审批音色或其他资产时按模式规则转完整模式。不传音频时由固定文字锚点约束，传入音频时使用 `media_to_video` 并以该资产为准。
+- 完整模式为每个已规划人声的声音主体（包括出镜角色、画外角色和无实体叙述者）生成或复用稳定 VOICE 音色资产；已确定在当前集后续片段发声但尚未轮到发声的主要角色也保留固定音色，没有已规划人声需求的出镜角色不因此新建 VOICE，无台词背景群众不建 VOICE。轻量模式直接继承已确认音色描述，可以使用真实可用且已确认的既有/用户音频，不新增独立音色资产阶段；需要独立生产和审批音色或其他资产时按模式规则转完整模式。不传音频时由固定文字锚点约束，传入音频时使用 `media_to_video` 并以该资产为准。
 
 ## 动态执行硬门
 
@@ -457,13 +490,13 @@ python3 <skill-dir>/scripts/drama_lint.py --project-root "<项目目录>" --stag
 
 `--stage video` 是发起视频阶段确认前的结构检查，允许已完成上述客观条件的 SEG 保持 `candidate`；它不要求在用户确认前提前写成 `accepted`。结构问题只修复记录、路径、状态或缺失文件这类客观缺口；模型意外生成的字幕、随机文字、水印或平台 UI 按既定字幕策略执行非视频生成类清理并验证。其他内容、审美、口型、身份、连续性或接缝问题只做内部记录，不阻断已生成视频交付，不主动说明，也不触发重生。若某段从未预览、返修后未展示，或用户要求回看，再由主 Agent 按交付路由单独补展示对应片段。不得展示批次文件、工具名、路由、Prompt、内部字段、资源 ID、任务 ID、抽帧清单、内部路径或质检统计。
 
-当前集全部片段展示完成后，才按 `control-contracts.md` 调用进入成片拼接确认；普通聊天不能替代，单段交付不触发该确认。用户选择 `proceed_assembly` 后，把采用的 `candidate` SEG 原子更新为 `accepted`，并同步写入该集 video 确认记录和 `delivery_manifest.assembly_confirmation`。该确认不授权新视频生成或编辑；后续重生、返修或新增 SEG 仍须重新展示完整参数，并按 `interaction-ask-video-clarification-ref.md` 取得新的 `generate`。若目标止于 video，则在整集片段全部交付后使用普通阶段确认结束，不创建拼接确认。
+当前集全部片段展示完成后，才按 `control-contracts.md` 完成进入成片拼接确认；原平台普通聊天不能替代，本地无专用确认工具时只接受 `local-runtime.md` 规定的同选项明确 `user_message` 并保存真实记录，单段交付不触发该确认。用户选择 `proceed_assembly` 后，把采用的 `candidate` SEG 原子更新为 `accepted`，并同步写入该集 video 确认记录和 `delivery_manifest.assembly_confirmation`。该确认不授权新视频生成或编辑；后续重生、返修或新增 SEG 仍须重新展示完整参数，并按 `interaction-ask-video-clarification-ref.md` 取得新的 `generate`。若目标止于 video，则在整集片段全部交付后使用普通阶段确认结束，不创建拼接确认。
 
 ---
 
 ## 第二部分：生成后抽帧与连续性
 
-本部分只适用于完整模式的分段视频。轻量模式只有一个最终视频，不创建 FRM、接缝窗口或 `continuity_ep_1.json`，生成结果直接按字幕策略进入最终交付；第一部分步骤 10 的抽帧与连续性流程对轻量模式不适用。
+本部分只适用于完整模式的分段视频。轻量模式只有一个最终视频，不创建 FRM、接缝窗口或 `continuity_ep_1.json`，生成结果直接按字幕策略进入最终交付，不执行本部分的抽帧与连续性流程。
 
 当一个 `SEGxxx` 已由视频工具真实生成并保存后即可抽帧；串行 runner 可先提取接力所需 tail，不必等待逐段交付。本文件是 FRM 和 observed SEAM 内部记录的唯一权威，负责从实际视频提取首帧、场景锚点帧和尾帧，为场景连续性、下一片段承接和用户主动修改时定位提供证据。KF 是生成前目标，FRM 是生成后事实；本部分不是阻断交付的最终质检门。
 
@@ -513,13 +546,13 @@ python3 <skill-dir>/scripts/drama_lint.py --project-root "<项目目录>" --stag
 - 道具：`PROPxxx` 状态版本、持有者、可见面、方向和接触点。
 - 下一片段必须继承项与允许变化项。
 
-下一片段底稿必须在上一段真实 tail 已生成、看图并登记后，从已确认分镜、数据卡、场景布局、真实尾值和接缝合同编译具体事实，再经 h3-prompt-writing 等价编译进 H3 成稿，不得只写“保持上一段一致”。每次运行只冻结当前段 Prompt；运行中不得临时改写。当前段退出后根据真实观察编译下一段，小偏差明确调整承接，大冲突返回上游；任何下一段 Prompt 或输入变化都在其运行前重新预检和确认。
+下一片段底稿必须在上一段真实 tail 已生成、看图并登记后，从上一段场景锚点帧记录复制具体事实，并结合已确认分镜、数据卡、场景布局、真实尾值和接缝合同编译，再经 h3-prompt-writing 等价编译进 H3 成稿，不得只写“保持上一段一致”。每次运行只冻结当前段 Prompt；运行中不得临时改写。当前段退出后根据真实观察编译下一段，小偏差明确调整承接，大冲突返回上游；任何下一段 Prompt 或输入变化都在其运行前重新预检和确认。
 
 ### 尾帧承接
 
 下一片段生成前按 `video.md` 根据真实输入选择视频工具：
 
-- `continuous` 接缝在工具支持图片输入时，把上一片段已保存 tail FRM、全部出场角色身份图和分镜声明为必需的场景、道具/状态图作为实际图片输入；`elliptical` 接缝从新起点所需资产开始，不强制传上一段 tail FRM。本段命中已规划高光 KF 时再传对应 KF，并记录资源 ID、文件路径、顺序和职责。
+- `continuous` 接缝在工具支持图片输入时，把上一片段已保存 tail FRM、全部出场角色身份图和分镜声明为必需的复现群众、场景、道具/状态图作为实际图片输入；`elliptical` 接缝从新起点所需资产开始，不强制传上一段 tail FRM。本段命中已规划高光 KF 时再传对应 KF，并记录资源 ID、文件路径、顺序和职责。
 - 底稿中使用对应 `<图片N>` 标签、H3 成稿中使用同序 `<Picture N>` 标签，明确每张图采用什么、不采用什么；`continuous` 声明 0 秒承接上一段结尾，`elliptical` 声明通过已确认转场锚点进入新状态、只变化 `permitted_deltas`，两者都逐项保留 `required_invariants`。
 - 若需要只推进一拍，可用 `image_edit` 基于原始尾帧制作“下一段首帧候选”，但必须保留原始尾帧并记录编辑范围。
 - 若 `continuous` 接缝所选工具不支持所需图片输入，停止并说明能力缺口；返回分镜调整分段或由用户重新选择可接收图片的工具方案，不得静默改成文字降级。`elliptical` 接缝按实际输入正常路由。

@@ -16,8 +16,8 @@
 - 完整模式必须在根目录 `01_剧本/` 先保存项目级完整故事包；多集项目覆盖全局故事圣经、全部分集推进总纲、人物弧、伏笔账本和最终结局。逐集可执行剧本进入 `episodes/ep_N/`，只在该集开始制作时生成，完整写出场次、动作和全部人声文本。轻量模式不要求建立独立剧本文件。
 - 项目级 JSON 管理跨集事实、来源、项目数据卡、共享资产、跨集接缝与索引；分集 JSON 管理本集状态、引用和阶段产物。
 - 项目级故事包确认后把 `current_episode` 设为 `ep_1`，从该集详细剧本开始逐集生产。共享资产可以在首次实际需要的分集创建并进入 `asset_registry.json`；后续集先从共享登记和已完成分集资产中复用 approved 版本，只把新增或状态变化项写入本集资产。
-- 跨集稳定的角色基准图、主要场景参考图、核心道具、音色和全局风格 moodboard 只保存于 `shared/`，不复制到每集目录。
-- 完整模式中，`00_制作控制/project_data_card.json` 是角色、场景、道具和音色“不可变身份 + 可变状态时间线”的单一事实源。下游只填写片段增量，不得手工复述另一套基础设定；轻量模式不创建该文件。
+- 跨集稳定的角色基准图、需要复现的群众参考图、主要场景参考图、核心道具、音色和全局风格 moodboard 只保存于 `shared/`，不复制到每集目录。
+- 完整模式中，`00_制作控制/project_data_card.json` 是角色、群众、场景、道具和音色“不可变身份 + 可变状态时间线”的单一事实源。下游只填写片段增量，不得手工复述另一套基础设定；轻量模式不创建该文件。
 - 当集新增或变化的服装、伤痕、年龄、伪装和道具状态保存在对应 `episodes/ep_N/03_资产/`；分镜确认后生成的剧情关键帧仍集中保存在该目录下的 `关键帧/`，但阶段状态独立记录为 `keyframes`。
 - 生成前关键帧使用 `KFxxx`，直接绑定已确认的 SEG、SHOT 和职责；视频生成后的实际抽帧使用 `FRMxxx`，用于记录模型真实输出。KF 与 FRM 不得混用或互相覆盖。
 - Markdown 面向用户和人工审阅；JSON 面向工具执行、依赖追踪、版本恢复和结构校验。JSON 只引用 Markdown 路径与哈希，不复制完整剧本、分镜说明或质检长文。
@@ -176,7 +176,7 @@
 
 ### 制作状态.json
 
-这是项目级与逐集阶段状态的唯一数据源。`drama_plan.json` 和 `episode_manifest_ep_N.json` 不重复保存状态：
+这是项目级与逐集阶段状态的唯一数据源。`drama_plan.json` 和 `episode_manifest_ep_N.json` 不再重复保存状态；旧项目已有的镜像字段允许保留，但不参与阶段判断，新项目不要创建：
 
 ```json
 {
@@ -220,14 +220,15 @@
 
 ```jsonl
 {"stage":"planning","episode_id":"","revision":1,"decision":"confirmed","confirmation_mode":"full","changed_artifacts":[],"impact_scope":[],"confirmation_purpose":"project_execution","interaction_ask_call_id":"实际确认调用 ID","interaction_ask_result":"proceed_project","user_message":"用户通过确认工具确认项目方案的原文","confirmed_at":"2026-09-08T12:00:00+08:00","confirmation_transport":"host_tool"}
-{"stage":"script","episode_id":"ep_1","revision":2,"decision":"confirmed","confirmation_mode":"full","changed_artifacts":[],"impact_scope":[],"confirmation_purpose":"","interaction_ask_call_id":"实际确认调用 ID","interaction_ask_result":"","user_message":"用户确认第 1 集详细剧本的原文","confirmed_at":"2026-09-08T12:05:00+08:00","confirmation_transport":"host_tool"}
-{"stage":"assets","episode_id":"ep_1","revision":2,"decision":"confirmed","confirmation_mode":"full|incremental","base_revision":1,"changed_artifacts":[],"impact_scope":[],"confirmation_purpose":"","interaction_ask_call_id":"实际确认调用 ID","interaction_ask_result":"","user_message":"用户本轮明确回复原文","confirmed_at":"2026-09-08T12:10:00+08:00","confirmation_transport":"host_tool"}
+{"stage":"script","episode_id":"ep_1","revision":2,"decision":"confirmed","confirmation_mode":"full","changed_artifacts":[],"impact_scope":[],"confirmation_purpose":"","interaction_ask_call_id":"local:script-ep1-r2","interaction_ask_result":"","user_message":"用户确认第 1 集详细剧本的原文","confirmed_at":"2026-09-08T12:05:00+08:00","confirmation_transport":"user_message"}
+{"stage":"assets","episode_id":"ep_1","revision":2,"decision":"confirmed","confirmation_mode":"full|incremental","base_revision":1,"changed_artifacts":[],"impact_scope":[],"confirmation_purpose":"","interaction_ask_call_id":"local:assets-ep1-r2","interaction_ask_result":"","user_message":"用户本轮明确回复原文","confirmed_at":"2026-09-08T12:10:00+08:00","confirmation_transport":"user_message"}
 ```
 
 - `planning` 始终是项目级确认。`script` 有两种作用域：项目级故事包确认的 `episode_id` 留空；分集详细剧本确认必须填写当前 `episode_id`。`assets|storyboard|keyframes|video|final` 始终填写当前 `episode_id`。同名阶段在不同作用域或不同集的确认记录不能互相替代。
 - 完整模式且 `target_stage=video|final` 时，planning 写 `project_execution/proceed_project`。轻量模式直接执行标准视频生成确认，planning 写 `video_generation/generate`；同一次调用还登记为当前唯一视频的 `generation_confirmations`。所有视频确认结构只读取 `interaction-ask-video-clarification-ref.md`。
-- 当目标继续到成片时，进入拼接的同一次 `interaction.ask` 还必须原子写入 `stage=video` 的确认记录：`confirmation_purpose: video_acceptance_and_final_assembly`、与 `assembly_confirmation` 相同的 `interaction_ask_call_id`、`interaction_ask_result: proceed_assembly`。当 `objective.target_stage=video` 时，video 阶段只做普通产物确认并停止，不创建虚假的拼接授权。
+- 当目标继续到成片时，进入拼接的同一次确认还必须原子写入 `stage=video` 的确认记录：`confirmation_purpose: video_acceptance_and_final_assembly`、与 `assembly_confirmation` 相同的 `interaction_ask_call_id`、`interaction_ask_result: proceed_assembly`。当 `objective.target_stage=video` 时，video 阶段只做普通产物确认并停止，不创建虚假的拼接授权。
 - `user_message` 保存触发继续的用户原文；空值、系统生成文字或仅有内部检查结果无效。
+- 每条确认记录都按真实通道写 `confirmation_transport: host_tool|user_message`；存在真实宿主工具调用时保存其非 `local:` 调用 ID，明确聊天确认保存真实唯一的 `local:` 记录 ID，不能伪造工具调用。普通阶段仍可依据用户完整明确回复确认，不要求为了填满字段额外调用视频生成确认工具。
 - `confirmed_at` 必须是带时区的 ISO-8601 时间。
 - 首次确认或重大修改使用 `confirmation_mode: full`；此时 `base_revision` 可省略，`changed_artifacts` 与 `impact_scope` 可为空。已有真实全量确认基础上的局部微调可使用 `incremental`，必须记录上一全量确认 revision、实际变化文件和影响范围；禁止第一次确认就写 `incremental`。
 - 用户提出修改时不写 `confirmed`；完成修改、重新展示并再次收到明确确认后才追加新记录。
@@ -266,7 +267,7 @@
 }
 ```
 
-`planning|script|storyboard` 的 `delegated` 必须为 `false` 且 `delegations` 为空。`assets|keyframes` 只有在图片工具执行被外包时才记录委派；`video` 只要发生实际视频生成/编辑工具调用，`delegated` 必须为 `true` 并记录 `video_execution` 交接包；`final` 只要发生拼接、裁剪、混音、mux、字幕烧录等媒体变更工具调用，`delegated` 必须为 `true` 并记录 `final_media_execution` 交接包。每个交接包使用 Skill 内或项目内相对路径，保存逐文件输出白名单、实际输出、硬约束、验收标准、检查命令和禁止再委派声明；画布写入、用户交付、确认工具调用和阶段状态收口不得出现在 subagent 委派范围内。
+`planning|script|storyboard` 的 `delegated` 必须为 `false` 且 `delegations` 为空。`assets|keyframes` 只有在图片工具执行被外包时才记录委派；`video` 由 subagent 启动固定入口时 `delegated: true` 并记录 `video_execution` 交接包，本地无 subagent、由主 Agent 启动同一固定进程时 `delegated: false` 且 `delegations` 为空，但仍须保存固定 queue、run-state 和真实工具记录；`final` 只要发生拼接、裁剪、混音、mux、字幕烧录等媒体变更工具调用，`delegated` 必须为 `true` 并记录 `final_media_execution` 交接包。每个实际交接包使用 Skill 内或项目内相对路径，保存逐文件输出白名单、实际输出、硬约束、验收标准、检查命令和禁止再委派声明；画布写入、用户交付、确认工具调用和阶段状态收口不得出现在 subagent 委派范围内。
 当前 `drama_lint.py` 的输出就是本次结构检查结果，不回填到被检查的合规证明中，避免证明文件预先声明自身已通过。`declaration` 必须以 `本阶段严格遵循skill要求，未使用禁止的替代工具` 开头，后面允许追加本阶段真实说明。
 规划、剧本和分镜属于纯文件创作阶段，没有外部生成调用时 `tool_calls` 直接写空数组，不得虚构 `file_creation`。除规划外，`upstream_artifacts` 必须完整覆盖上一阶段当前确认产物，每项记录项目内绝对路径、确认 revision 和确认记录中的 SHA-256。资产、关键帧、视频和成片属于生成或媒体处理阶段，必须保存实际调用；每项引用 `操作日志.jsonl` 中同名、同阶段且状态为 `succeeded` 的 `operation_id`，工具名必须一致，证据文件必须列在该操作的 `outputs` 中、实际存在且 SHA-256 匹配。图片和视频输出还必须保存真实文件探测得到的 `observed_metadata`，并与日志 `output_metadata` 一致。
 
@@ -283,6 +284,8 @@
 ### 校验器效率模式
 
 - `--stage planning|script|assets|storyboard|keyframes|video|final|all` 选择阶段检查范围；`--stage all` 用于最终发布或专项审计。
+- `--changed-file <项目内文件>` 可重复传入，仅为旧调用兼容；当前实现仍执行所选 `--stage` 的完整检查，不做依赖图裁剪。
+- `--fix` 仅为旧调用兼容，当前不自动创建、补写或修改任何项目文件。
 - 项目初始化、新版本复制、引用更新和剧本合同同步当前均由主 Agent 按本文件规则完成，不得调用校验器未提供的参数。
 
 ### project_script_manifest.json
@@ -298,13 +301,11 @@
   "source_markdown": "01_剧本/剧本_全剧完整剧本.md",
   "source_sha256": "",
   "episode_count": 2,
-  "estimated_total_duration_range_s": {"min_s": 120, "max_s": 240},
-  "estimated_total_duration_display": "预估120-240秒/约2-4分钟，仅作规模参考",
+  "total_duration_s": 240,
   "episodes": [
     {
       "episode_id": "ep_1",
-      "estimated_duration_range_s": {"min_s": 60, "max_s": 120},
-      "estimated_duration_display": "预估60-120秒/约1-2分钟，仅作规模参考",
+      "duration_s": 120,
       "opening_state": "",
       "main_conflict": "",
       "major_turns": [],
@@ -323,7 +324,7 @@
 
 - 项目级故事包检查要求 `项目设定卡.md`、`剧本_全局设定与分集总纲.md` 和项目级完整剧本正文存在；未来集的 `detailed_script` 与 `script_contract` 允许为空。当前集详细剧本完成后再填写对应路径，且路径必须真实存在。
 - `global_story_and_episode_outline` 固定指向合并文件。该文件必须同时包含“全局故事圣经”和“分集推进总纲”两个一级章节，不再保存两个独立同名文件。
-- `episodes` 数量和顺序必须与 `drama_plan.json` 一致。完整模式代理规划保存与规划相同的逐集预估区间及总预估区间，只作规模参考；它们不与详细剧本、分镜或成片的实际时长做相等校验。每集仍须覆盖开场状态、冲突、主要变化、高潮/兑现、结尾状态及下一钩子。
+- `episodes` 数量、顺序和时长必须与 `drama_plan.json` 一致，并覆盖每个 `ep_N` 的开场状态、冲突、主要变化、高潮/兑现、结尾状态及下一钩子。
 - `character_arcs`、`plot_threads` 和 `final_resolution` 保证人物弧、伏笔与结局跨集闭合。
 - 每集详细完整剧本在该集开始制作时保存到 `episodes/ep_N/01_剧本/`；它必须细化项目级完整故事，不得改变其中的核心因果、结局或集间承接。需要改变时先更新项目级故事包并使受影响分集失效。
 
@@ -369,14 +370,7 @@
     "style_asset_id": "STYLE001",
     "ratio": "9:16",
     "episode_count": 2,
-    "estimated_episode_duration_ranges_s": [
-      {"min_s": 60, "max_s": 120},
-      {"min_s": 60, "max_s": 120}
-    ],
-    "estimated_episode_duration_displays": [
-      "预估60-120秒/约1-2分钟，仅作规模参考",
-      "预估60-120秒/约1-2分钟，仅作规模参考"
-    ],
+    "episode_durations_s": [120, 120],
     "subtitle_style": {}
   },
   "shared_baseline": {
@@ -519,7 +513,7 @@
 - 已进入分镜或生成阶段的状态变化还要填写 `affected_shot_ids`、`affected_segment_ids` 和 `asset_version_ids`；基础初始状态可以使用空数组。
 - 场景 `layout_locked` 固定户型、门窗朝向、固定家具与主要通道；`consistency_anchors` 必须选择 `3-5` 个包含对象、外观和固定位置的唯一可见锚点；`base_lighting_locked` 只锁定剧本实际使用的基础光照，`state_timeline` 只记录有剧情原因的布置或灯光变化。
 - 道具 `appearance_locked` 固定颜色、形状、材质和标志性磨损；`scale_class/scale_reference` 锁定尺度，`narrative_functions` 逐场记录剧情功能，位置、归属、开合、内容物、破损和完整性变化进入带原因与可观察结果的 `state_timeline`。
-- 下游 Prompt 必须记录采用的数据卡 revision、角色/场景/道具 ID 与当前 `state_id`，不得复制后再自行改写基础设定。
+- 下游 Prompt 必须记录采用的数据卡 revision、实际涉及的角色/群众/场景/道具 ID 与当前 `state_id`，不得复制后再自行改写基础设定。
 
 ### asset_registry.json
 
@@ -604,8 +598,8 @@
   "episode_id": "ep_1",
   "episode_number": 1,
   "revision": 1,
-  "estimated_duration_range_s": {"min_s": 60, "max_s": 120},
-  "estimated_duration_display": "预估60-120秒/约1-2分钟，仅作规模参考",
+  "duration_s": 120,
+  "duration_display": "2分钟",
   "stage_manifests": {
     "script": "episodes/ep_1/01_剧本/script_contract_ep_1.json",
     "storyboard": "episodes/ep_1/02_分镜/storyboard_ep_1.json",
@@ -632,8 +626,7 @@
   "project_data_card_revision": 1,
   "source_markdown": "episodes/ep_1/01_剧本/剧本_完整剧本_ep_1.md",
   "source_sha256": "",
-  "estimated_duration_range_s": {"min_s": 60, "max_s": 120},
-  "estimated_duration_display": "预估60-120秒/约1-2分钟，仅作规模参考；不作为剧本字数或下游时长门",
+  "duration_s": 120,
   "story_engine": {
     "dramatic_question": "",
     "protagonist_desire": "",
@@ -729,7 +722,7 @@
 
 ### storyboard_ep_N.json
 
-本 JSON 只用于完整模式，保存与十五列详细分镜逐镜对应的机器字段、片段规划和运镜合同。`duration_s` 是本部分镜的实际执行总时长，由镜头时长求和并与 SEG 内部时长闭合；`planning_estimate` 不做跨层相等校验，`user_locked` 必须与锁定的本集执行时长相等。轻量模式只生成 `分镜_完整分镜表_ep_1.md`，其实际执行总时长必须与唯一视频的锁定时长相等，不创建本 JSON：
+本 JSON 只用于完整模式，保存与十五列详细分镜逐镜对应的机器字段、片段规划和运镜合同。轻量模式只生成 `分镜_完整分镜表_ep_1.md`，不创建本 JSON：
 
 ```json
 {
@@ -1082,9 +1075,9 @@
 - `segment_durations` 只有当前 SEG 一项，`segment_id` 与 `duration_s` 必须和同一 `video_manifest` 中对应 SEG 完全一致；确认记录 `duration_s` 等于该段时长。
 - `displayed_parameter_table` 表示实际展示的一张两列表格，其中“数量”为 `1`，“分段时长”和“总时长”都按当前 SEG 真实值渲染。
 - `displayed_storyboard_rows` 表示实际展示的一张五列表格；机器结构将第一列拆为 `segment_id + duration_s`，其余四列依次为 `visual_content`、`subject_action`、`audio`、`camera_and_materials`。当前 SEG 恰好一行，只能引用已确认分镜、上一段真实尾态和真实素材；不得使用未来 tail 或预定路径。
-- `final_parameters_text` 保存用户实际看到的完整普通文本，必须包含一张两列参数表和一张五列分镜表，不得包含第三张表；两张表之后才允许调用 `interaction.ask`。
+- `final_parameters_text` 保存用户实际看到的完整普通文本，必须包含一张两列参数表和一张五列分镜表，不得包含第三张表；两张表展示之后才允许按确认 Ref 的宿主路由取得生成确认。
 
-固定 `串行执行.json` 是当次运行前冻结的执行事实，最多包含一个新 `generate`，run-state 是 runner 的实际进度与输出证据，两者不得混写。run-state 必须完整绑定该 JSON 的 SHA-256、`video_provider`、适配器版本/SHA-256 和 cloud config SHA-256，并逐段记录真实 `task_id`（若已取得）、输出/tail 路径与 SHA-256、tail 来源视频 SHA-256、confirmation ID 和停止原因；`manifest_modified` 必须为 `false`。新 `generate` 的 continuous 输入必须是确认前已存在的真实 tail，不能只登记未来路径。run-state 的续跑核验和每次退出后的看图、登记与交付边界见 `delegation.md`；AutoDL 的 `prompt_id` 归一化只属于 AutoDL provider 文档。
+固定 `串行执行.json` 是当次运行前冻结的执行事实，最多包含一个新 `generate`，run-state 是 runner 的实际进度与输出证据，两者不得混写。run-state 必须完整绑定当次 JSON 的 SHA-256、`video_provider`、适配器版本/执行依赖 SHA-256 和 cloud config SHA-256，并逐段记录真实 `task_id`（若已取得）、输出/tail 路径与 SHA-256、tail 来源视频 SHA-256 和 confirmation ID；顶层记录 `last_run_authorized_segments`、`last_run_status: complete|stopped`，失败时另记 `last_error_type`，`manifest_modified` 必须为 `false`。推进到下一版 queue 时只按 `delegation.md` 的历史段原序保留、`reuse` 和哈希闭合规则续跑，旧 queue SHA 追加到 `superseded_queue_sha256`，不得删除历史段证据或重置状态文件。新 `generate` 的 continuous 输入必须是确认前已存在的真实 tail，不能只登记未来路径。run-state 的续跑核验和每次退出后的看图、登记与交付边界见 `delegation.md`；AutoDL 的 `prompt_id` 归一化只属于 AutoDL provider 文档。
 
 ```json
 {
@@ -1094,6 +1087,7 @@
   "video_provider_adapter_version": "1.0",
   "video_provider_adapter_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "cloud_config_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "superseded_queue_sha256": [],
   "current_segment": "SEG001",
   "segments": {
     "SEG001": {
@@ -1109,6 +1103,8 @@
       }
     }
   },
+  "last_run_authorized_segments": ["SEG001"],
+  "last_run_status": "complete",
   "manifest_modified": false
 }
 ```
@@ -1179,7 +1175,7 @@
 
 ### delivery_manifest_ep_N.json
 
-保存最终采用片段、音轨、字幕和交付文件。`duration_s` 必须来自最终交付媒体的真实探测结果，`duration_display` 由该实际值生成；它不是规划预估值，也不与规划总时长做相等校验。拼接时间线的期望时长另由实际采用的 SEG 与裁剪切点计算：
+保存最终采用片段、音轨、字幕和交付文件：
 
 ```json
 {
@@ -1221,7 +1217,7 @@
 
 - 完整模式的 `assembly_confirmation` 保存进入本集成片拼接前的独立确认；`segment_ids` 必须按顺序精确等于本次采用的 accepted SEG，`interaction_ask_result` 固定为 `proceed_assembly`。轻量模式只有一个最终视频，不执行拼接，`assembly_confirmation` 留空。
 - 最终交付校验时 `delivery_manifest_ep_N.json.status` 可以为 `deliverable|candidate`；`blocked` 不得交付。`candidate` 表示存在内部记录的内容风险，但只要客观可播放、可交付，就不得因最终内容质检缺失而扣住交付。该媒体状态不等于用户确认；用户确认仍记录在 `制作状态.json` 与 `用户确认记录.jsonl`。
-- `basic_qc_reports` 由主 Agent 根据真实 mediakit 探测终态与实际播放结果生成，分别绑定对应成片、输入文件哈希和媒体探测结果。
+- `basic_qc_reports` 由主 Agent 根据实际采用路径的真实 mediakit 探测终态或本地同步探测事实与实际播放结果生成，分别绑定对应成片、输入文件哈希和媒体探测结果。每份报告是真实 JSON，公共字段至少包含 `status`、`media_file`、`media_sha256`、`expected.duration_s`、`observed.duration_s`；原平台的异步任务/raw response 或本地的同步命令/退出码/探测证据仍按 `delivery.md` 保存。`media_file` 必须精确等于当前验收的 `clean_master` 或 `subtitle_master`，`media_sha256` 必须是 64 位小写 SHA-256 并匹配当前媒体实际字节；`expected.duration_s` 必须精确取本 manifest 的 `duration_s`，`observed.duration_s` 必须为有限正数且与期望值相差不超过 `0.5` 秒。字幕关闭时数组恰好一项，字幕开启时依次是无字幕母版、字幕版各一项；报告必须位于当前分集 `05_成片` 目录。
 - `asr_alignment_report` 由主代理依据 `delivery.md` 的顺序对齐规则生成，绑定当前分集 `script_contract`、`asr_source` 和实际带音轨媒体的路径、字节数与 SHA-256。
 - 基础媒体检查结果为 `blocked` 时不得交付；字幕关闭时不执行语音对齐。字幕开启时，语音对齐失败不使内部无字幕母版失效，但会阻断唯一交付物字幕版，修复前不得改交无字幕母版。需要人工判断的画面与表演问题直接查看成片，不要求额外填写固定 Markdown 报告。
 
@@ -1229,7 +1225,7 @@
 
 - `制作状态.json` 独占规划与生产阶段状态。`phases.planning` 与 `phases.script` 分别表示项目规划和项目级故事包硬门；`episodes.ep_N.stage_status.script` 表示该集详细剧本。资产及后续项目状态是逐集聚合视图。
 - `current_stage: script` 且 `current_episode` 为空时表示项目级故事包；`current_stage: script` 且 `current_episode=ep_N` 时表示该集详细剧本。当前集更早阶段必须为 `confirmed|merged`，更晚阶段只能为 `pending|invalidated`；更早集必须至少完成到 `objective.target_stage`，更晚集的详细剧本及后续阶段必须保持 `pending|invalidated`。当前集达到目标后，下一集总是从 `script` 开始。
-- `episode_manifest_ep_N.json` 只保存身份、规划阶段的预估时长参考和文件指针，不预写尚未产生的分镜或成片实际时长，也不保存顶层 `status` 或 `stage_status`。实际时长分别保存在 storyboard、video 与 delivery 的真实执行记录中。
+- `episode_manifest_ep_N.json` 只保存身份、时长和文件指针，不再保存顶层 `status` 或 `stage_status`。旧项目中的同名镜像字段允许保留，但校验和推进只读取 `制作状态.json`。
 - 每集状态遵循本集阶段拓扑，但不同集允许处于不同阶段：项目仍在规划或项目级故事包阶段时，各分集生产阶段只能为 `pending|invalidated`；进入逐集循环后，仅 `current_episode` 可以处于活动状态，且先活动于 `script`。较早集必须达到目标阶段，较晚集不得提前生成详细剧本或进入资产阶段。
 - `project_manifest.json` 是路径索引，`drama_plan.json` 是规划权威，`project_script_manifest.json` 是项目级完整剧本索引，`project_data_card.json` 是跨阶段设定与状态权威，`asset_registry.json` 是共享媒体资产权威，各自不得复制对方的完整字段。
 - `剧本_全剧完整剧本.md` 是项目故事权威；逐集剧本和人物关系张力矩阵是执行细化。修改项目级剧本中的核心因果、人物弧、结局或分集边界时，所有受影响 `script_contract_ep_N.json` 及下游阶段必须失效。

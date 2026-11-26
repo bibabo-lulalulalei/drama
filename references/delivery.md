@@ -37,7 +37,7 @@
 - 完整模式需要当前项目数据卡、共享资产登记和跨集一致性结论；轻量模式不要求这些完整模式上游文件。
 - 已确认 `drama_plan.delivery_settings` 中的字幕开关、片头片尾、BGM、`audio_policy` 和交付范围；任一项缺失时返回规划阶段补齐，不得在成片阶段临时决定。只有 `audio_policy` 已明确给出目标响度时才按该值锁定；未给出时保留可用原生响度，只处理片段间明显响度突变，不在成片阶段临时发明 LUFS 数值。
 
-SRT、ASR 信封、烧录参数和字幕版必须在最终音轨锁定后按本文件第二部分生成，不得作为进入本阶段的前置产物。
+字幕开启时，SRT、实际采用路径的 ASR 原始信封或人工试听对齐证据、烧录参数和字幕版必须在最终音轨锁定后按本文件第二部分生成，不得作为进入本阶段的前置产物；字幕关闭时跳过这些字幕专属产物。
 
 缺片段、错序、未确认版本、损坏文件或时间轴重叠时不得进入成片。未验证接缝、计划人声偏差、口型或连续性问题不阻断成片，只记录为用户主动修改时的线索。
 
@@ -51,27 +51,27 @@ SRT、ASR 信封、烧录参数和字幕版必须在最终音轨锁定后按本�
 6. 只处理响度、混音、mux 等客观交付问题；人声类型、主体、文本、顺序、口型职责等内容问题只内部记录。
 7. 完成全部声音处理后锁定“最终音轨 vNN”；任何后续音频修改都会使 ASR、SRT 和字幕烧录产物失效。
 
-只有用户明确提出修改并重新确认，才允许使用已批准 VOICE 音频 做局部缺失人声修复；不得在最终阶段自动整段替换原生人声。
+只有用户明确提出修改并重新确认，才允许使用已批准 VOICE 音频做局部缺失人声修复；不得在最终阶段自动整段替换原生人声。
 
 ### 成片执行顺序
 
 以下编号流程用于完整模式。轻量模式直接把唯一生成视频作为无字幕成片：字幕关闭时只做基础可交付检查并交付；字幕开启时把它作为内部烧录源，完成字幕链后只检查并交付字幕版。轻量模式不执行片段拼接、接缝读取或拼接确认。
 
 1. 回读采用片段、verified seam、状态和版本。
-2. 主 Agent 把已取得的拼接确认按 `manifests.md` 写入 `delivery_manifest_ep_N.json.assembly_confirmation`，再锁定片段顺序、有效切出/切入点、声音桥、已确认 `audio_policy`、字幕开关、输出版本和允许调用的 mediakit 能力；仅当 `audio_policy` 明确给出目标响度时才把该数值写入执行包。随后按 `delegation.md` 下发 `final_media_execution` 执行包。
-3. subagent 使用宿主实际暴露的 mediakit 编辑能力拼接无字幕母版；存在独立音轨时使用实际 schema 中的混音与音视频封装能力，不能把视频拼接冒充混音。subagent 只写白名单输出并返回真实任务结果，不决定剪辑策略、不交付用户、不写画布。
-4. 主 Agent 收回后使用 `byted-mediakit-video` 探测母版，确认有效视频流、音轨和媒体参数。
+2. 主 Agent 把已取得的拼接确认按 `manifests.md` 写入 `delivery_manifest_ep_N.json.assembly_confirmation`，再锁定片段顺序、有效切出/切入点、声音桥、已确认 `audio_policy`、字幕开关、输出版本和允许调用的当前媒体链能力；仅当 `audio_policy` 明确给出目标响度时才把该数值写入执行包。随后按 `delegation.md` 下发 `final_media_execution` 执行包。
+3. subagent 使用宿主实际暴露的 mediakit 编辑能力（本地为 `local-runtime.md` 映射的 `tools/media.py`）拼接无字幕母版；存在独立音轨时使用当前媒体链实际支持的混音与音视频封装能力，不能把视频拼接冒充混音。subagent 只写白名单输出并返回真实工具结果，不决定剪辑策略、不交付用户、不写画布。
+4. 主 Agent 收回后使用当前媒体链探测母版，确认有效视频流、音轨和媒体参数：原平台使用 `byted-mediakit-video`，本地使用 `python tools/media.py probe <mp4> [--json]` 并保存同步结果。
 5. 锁定最终音轨后，执行本文件第二部分：
    - 字幕关闭：只做无字幕母版基础可交付检查。
-   - 字幕开启：执行 ASR、对齐、SRT、无字幕母版基础可交付检查、烧录和字幕版基础可交付检查。
+   - 字幕开启：按宿主能力取得 ASR 或人工试听对齐证据，再执行对齐、SRT、无字幕母版基础可交付检查、烧录和字幕版基础可交付检查。
 6. 若本文件第二部分需要字幕烧录或其他媒体变更工具，主 Agent 继续用锁定执行包委派 subagent 执行实际媒体变更，回收后只做基础可交付检查。
 7. 不做阻断式最终内容质检；如需内部记录，可快速记录文件可播放、总时长、画幅和明显客观导出异常。
 8. 更新 `delivery_manifest_ep_N.json`，运行 `drama_lint.py --stage final`。
-9. 由主 Agent 通过宿主实际交付工具只展示一个最终视频：字幕关闭时展示无字幕成片，字幕开启时展示字幕版；非 Mobile 只把该最终交付版本按 `cli/README.md` 写入 Canvas 并回读成功后等待用户确认。内部无字幕母版不得作为第二个版本展示或上画布。
+9. 由主 Agent 通过宿主实际交付工具只展示一个最终视频：字幕关闭时展示无字幕成片，字幕开启时展示字幕版。只有原平台非 Mobile 分支把该最终交付版本按 `cli/README.md` 写入 Canvas 并回读，本地分支按 `local-runtime.md` 提供真实文件入口或内联预览；随后等待用户确认。内部无字幕母版不得作为第二个版本展示或上画布。
 
-调用前必须确认宿主实际暴露的 mediakit 能力和参数 schema。工具不存在时停止，报告缺失能力与已落盘产物，不得伪造调用或宣布成片成功。
+调用前必须确认宿主实际暴露的 mediakit 能力和参数 schema；本地按 `local-runtime.md` 核对 `tools/media.py` 的实际能力。当前媒体链所需能力不存在时停止，报告缺失能力与已落盘产物，不得伪造调用或宣布成片成功。
 
-mediakit 编辑、探测、ASR 和字幕任务的轮询、失败处理与临时 URL 下载统一按本文件任务记录部分执行。
+所有 mediakit 编辑、探测、ASR 和字幕任务均为异步调用。提交成功只表示已受理；必须保存真实 `task_id`，通过 `byted-mediakit-shared / query-task` 查询到 `status=completed` 后，才消费结果并及时下载临时 URL。单次轮询达到 9 分钟后仍为 `running|queued` 时，用同一 `task_id` 继续查询；不得重复提交。本地 `tools/media.py` 是同步命令，以退出码、真实输出文件和探测结果确认完成，不套用上述异步任务字段。
 
 ### 基础可交付检查
 
@@ -131,7 +131,7 @@ mediakit 编辑、探测、ASR 和字幕任务的轮询、失败处理与临时 
 
 路径、命名、比例编码、版本后缀、报告文件和 `delivery_manifest_ep_N.json` schema 只读取 `manifests.md`。每集 `outputs` 必须且只能包含一个最终视频：字幕关闭时为无字幕成片，字幕开启时为字幕版。SRT、字幕 JSON、烧录参数、检查报告和字幕开启时的无字幕母版均为内部制作与追溯文件，不作为额外交付物，不进入 `outputs`、`present_files` 或 Canvas。重导出建立新 `_vNN`，不得覆盖已确认成片。
 
-交付前更新成片清单、基础可交付记录和 delivery manifest，将成片阶段及 `current_episode` 状态写为 `awaiting_confirmation`，运行当前集最终结构检查，并确保内部记录与真实文件一致。通过后立即展示当前集字幕策略对应的唯一最终视频；非 Mobile 只把该版本写入 Canvas 并回读成功。收到修改意见时返回当前集最早受影响阶段处理并重新展示；只有用户明确确认后才完成当前集交付。多集项目在当前集确认后，才把下一集设为 `current_episode` 并进入其详细剧本阶段；最后一集确认后才完成整个项目。
+交付前更新成片清单、基础可交付记录和 delivery manifest，将成片阶段及 `current_episode` 状态写为 `awaiting_confirmation`，运行当前集最终结构检查，并确保内部记录与真实文件一致。通过后立即展示当前集字幕策略对应的唯一最终视频；只有原平台非 Mobile 分支把该版本写入 Canvas 并回读，本地分支按 `local-runtime.md` 真实展示。收到修改意见时返回当前集最早受影响阶段处理并重新展示；只有用户明确确认后才完成当前集交付。多集项目在当前集确认后，才把下一集设为 `current_episode` 并进入其详细剧本阶段；最后一集确认后才完成整个项目。
 
 ---
 
@@ -154,7 +154,7 @@ MediaKit 工具名、参数、异步生命周期与结果字段统一以调用�
 - 字幕默认关闭。只有用户明确要求字幕、双语字幕、逐句字幕、caption 或字幕版成片时才开启字幕链路。
 - 所有视频生成工具调用固定 `video_generation_subtitles: false`，禁止模型直接生成逐句字幕或自动转写文字。
 - 成片阶段先锁定已采用片段与最终原声音轨，再生成字幕。
-- 默认逐集只交付无字幕成片；若视频生成结果里出现字幕、随机文字、水印或平台 UI 残留，先用宿主非视频生成类字幕/文字擦除能力处理并验证后再交付，无残留则直接交付。用户明确要求字幕时，生成内部 SRT、字幕 JSON 和烧录记录，但只交付字幕烧录版；内部无字幕母版和字幕辅助文件都不作为第二份用户交付。字幕烧录统一使用 mediakit `add-subtitle-to-video`，不使用 FFmpeg 手动烧录字幕。
+- 默认逐集只交付无字幕成片；若视频生成结果里出现字幕、随机文字、水印或平台 UI 残留，先用宿主非视频生成类字幕/文字擦除能力处理并验证后再交付，无残留则直接交付。用户明确要求字幕时，生成内部 SRT、字幕 JSON 和烧录记录，但只交付字幕烧录版；内部无字幕母版和字幕辅助文件都不作为第二份用户交付。字幕烧录按 `local-runtime.md` 选择当前宿主真实媒体链：原平台使用 mediakit `add-subtitle-to-video`，本地使用 `tools/media.py burn`；同一版本只走一条路径，不把本地实现伪称远端任务。
 - 字幕时间优先来自 mediakit ASR；本地确实无 ASR 时，以实际音轨逐句试听形成人工对齐记录。两条路径只执行一条，正确文本都来自已确认剧本和 `speech_lines`，ASR 文本或人工听写都不能覆盖已确认台词。
 
 ### 全交付链工具职责（按当前 MediaKit 0.2.1 合同）
@@ -165,13 +165,13 @@ MediaKit 工具名、参数、异步生命周期与结果字段统一以调用�
 |---|---|---|
 | 有效区间裁剪 | mediakit `trim-video` | 按 verified cut 生成各 SEG 的有效区间文件 |
 | 视频拼接 | mediakit `concat-video` | 按已确认顺序硬切拼接有效区间并保留原声音轨 |
-| 媒体探测 | mediakit `probe-video-metadata` | 为无字幕母版和字幕烧录版生成带真实 task ID 的元数据调用信封 |
+| 媒体探测 | 原平台 mediakit `probe-video-metadata`；本地 `tools/media.py probe` | 原平台为无字幕母版和字幕烧录版生成带真实 task ID 的元数据调用信封；本地保存同步退出码、实际输出文件与 ffprobe 事实，不伪造 task ID |
 | 字幕对齐 | mediakit `asr-subtitles`；无 ASR 时主 Agent 实际试听 | 获取或人工确认逐句起止时间和说话人，只保存实际采用路径的证据 |
 | 对齐差异检测 | 主 Agent 对照 `script_contract` 与 ASR 结果或试听记录 | 按顺序映射 `spoken_text`，定位疑似错字、漏句、重复和截断；只用于字幕文件整理，字幕开启时失败则修复字幕链，不改交付版本 |
 | 基础可交付检查 | mediakit 探测 + 真实播放 | 检查媒体参数、文件完整性、音轨及适用的 SRT 结构、时码和无标点规则 |
 | 文本整理 | 已确认 `spoken_text` + 定向人工复核 | 用剧本正确文本修正 ASR 错字，不用 ASR 覆盖剧本 |
-| 字幕烧录 | mediakit `add-subtitle-to-video` | 按比例使用固定预设、36px 思源黑体和白色字幕 |
-| 基础检查 | MediaKit 探测 + 实际播放/抽帧 | 以 `probe-video-metadata` 的真实任务结果检查文件是否可交付；本地解码只做防篡改复核 |
+| 字幕烧录 | 原平台 mediakit `add-subtitle-to-video`；本地 `tools/media.py burn` | 按比例使用固定位置、36px 思源黑体和白色字幕；两条路径分别保存真实参数与结果 |
+| 基础检查 | 当前媒体链探测 + 实际播放/抽帧 | 原平台以 `probe-video-metadata` 的真实任务结果检查文件是否可交付；本地以同步 ffprobe、全量解码和实际播放/抽帧结果检查，不伪造异步任务 |
 
 核心分工：主 Agent 根据宿主实际能力执行媒体探测和字幕对齐，并按 `delegation.md` 委派裁剪、拼接、混音和字幕烧录等媒体变更。使用 mediakit 时，探测和 ASR 都保存真实任务标识、终态原始响应和输入文件哈希；本地无 ASR 时不伪造调用信封，改存 `asr_alignment_report`，其中写明 `method: manual_listening`、实际音轨文件与 SHA-256、逐句 `spoken_text`、试听确认的起止时间、说话人和复核结果。该字段是两条路径共用的对齐报告位置，不表示人工路径曾调用 ASR。
 
@@ -189,7 +189,11 @@ mediakit 路径的调用信封固定为：
 }
 ```
 
-mediakit 异步任务使用同一真实 `task_id` 查询到终态，不得重复提交或伪造 `completed`。`raw_response` 保留未经改写的终态响应；探测 `normalized` 至少包含媒体流与时长事实，ASR 结果至少能解析逐句起止文本，启用说话人识别时还包含 `speaker`。本地同步探测与人工试听证据按 `local-runtime.md` 保存，不套用这些异步字段。
+所有 mediakit 能力均按异步任务处理：提交后保存真实 `task_id`，使用 `mediakit-cli shared query-task --task-id <task_id> --poll-complete` 查询；单次轮询结束但 `status` 仍为 `running|queued` 时，用同一 `task_id` 继续查询，不得重复提交。只有 `status=completed` 才能消费结果；`failed|canceled|cancelled` 阻断。结果中的临时 HTTPS 下载地址有效期为 24 小时，必须及时下载到项目正式路径。
+
+`raw_response` 保留 `completed` 终态查询的未经改写响应；探测信封的 `normalized` 至少包含 `duration_s/width/height/fps/video_stream_count/audio_stream_count`。ASR 信封至少能从 `raw_response.result.subtitles[]` 解析 `start_time/end_time/subtitle_text`；启用说话人识别后还必须能解析 `speaker`。
+
+本地同步探测与人工试听证据按 `local-runtime.md` 保存，不套用这些异步字段。
 
 ### 台词与字幕文本合同
 
@@ -226,7 +230,9 @@ mediakit 异步任务使用同一真实 `task_id` 查询到终态，不得重复
 
 本部分不再次裁剪或拼接 SEG。直接使用第一部分按 verified cut 生成、完成混音并锁定最终音轨的无字幕母版；任何片段顺序、剪切点或音轨变化都会使后续 ASR、SRT 和字幕烧录产物失效。裁剪精度、拼接参数、异步任务和下载规则以调用时宿主实际 schema 为准。
 
-#### 2. mediakit ASR 对齐
+#### 2. 按宿主能力取得对齐证据
+
+仅原平台在实际提供 mediakit ASR 时执行以下命令；本地没有 ASR 时跳过该命令，不伪造任务或原始信封，改按 `local-runtime.md` 对最终音轨逐句试听，并把真实音轨 SHA-256、`spoken_text`、起止时间、说话人和复核结果写入同一份 `asr_alignment_report`，标记 `method: manual_listening`。
 
 ```bash
 mediakit-cli video asr-subtitles \
@@ -242,22 +248,22 @@ mediakit-cli shared query-task \
 
 保存调用信封 JSON，包含 `skill: byted-mediakit-video`、`operation: asr-subtitles`、以 `amk-tool-asr-subtitles-` 开头的真实 `task_id`、`status: completed` 和未经改写的终态 `raw_response`；原始分段至少能从 `result.subtitles[]` 解析 `start_time`、`end_time`、`speaker` 和 `subtitle_text`。ASR 时间戳作为默认时间依据；文本可能有错，不能直接进入成片。
 
-#### 3. ASR 与剧本顺序对齐
+#### 3. 对齐证据与剧本顺序对齐
 
-主 Agent 读取本集 `script_contract_ep_N.json` 和 mediakit ASR 调用信封，按说话人、句序和时间范围把 ASR 条目映射到已确认 `spoken_text`。允许一句被拆成多条 ASR 或相邻短句被合并；把输入文件、媒体文件、真实任务标识、映射结果和阻断原因保存到 `质检_ASR对齐_vNN_ep_N.json`。
+主 Agent 读取本集 `script_contract_ep_N.json` 和实际采用路径的 ASR 调用信封或人工试听记录，按说话人、句序和时间范围把对齐条目映射到已确认 `spoken_text`。允许一句被拆成多条或相邻短句被合并；把输入文件、媒体文件、所选路径的真实证据、映射结果和阻断原因保存到 `质检_ASR对齐_vNN_ep_N.json`。
 
 - 整句没有任何匹配、相似度低于阻断阈值、时间范围无效或顺序结构异常：`blocked`。
 - 单字、同音字、专名差异由创作者定向试听判断，不进入自动报告门禁。
-- 无论 ASR 识别为何，字幕正文都来自已批准 `spoken_text`。
+- 无论 ASR 识别或人工听写为何，字幕正文都来自已批准 `spoken_text`。
 
 #### 4. 回填正确文本并规范化
 
-1. 按说话人、句序和语义把 ASR 条目映射到已确认 `speech_lines`。
-2. 只把 ASR 错字改回 `spoken_text`，不改变 ASR 的起止时间。
+1. 按说话人、句序和语义把实际采用路径的对齐条目映射到已确认 `speech_lines`。
+2. 字幕正文只取 `spoken_text`，不改变 ASR 或人工试听已核验的起止时间。
 3. 相邻同说话人短句时间间隔小于 `0.5` 秒时可以合并；开始时间取第一句，结束时间取最后一句。
 4. 单句超过 `18-20` 个汉字时优先在语义停顿处换成两行，保持同一时间区间；只有 ASR 提供可靠词级时间时才拆成两个独立字幕事件。
-5. 每条字幕建议持续 `1.5-5` 秒。超出范围时先重新核对 ASR 分句；不得凭感觉平移时间戳。
-6. 对齐失败时重新运行 ASR 或回到视频阶段修复音轨，禁止手工猜测整体偏移量。
+5. 每条字幕建议持续 `1.5-5` 秒。超出范围时先重新核对 ASR 分句或人工试听记录；不得凭感觉平移时间戳。
+6. 对齐失败时按原路径重新 ASR 或重新试听；确认音轨本身缺句时只记录可选返修范围，不自动调用视频工具。禁止猜测整体偏移量。
 
 默认输出：
 
@@ -277,7 +283,21 @@ episodes/ep_N/05_成片/字幕_时间轴_vNN_ep_N.srt
 
 #### 5. 基础可交付检查
 
-先对无字幕母版执行 mediakit 媒体探测并实际播放，再把文件路径、输入哈希、真实任务标识、终态响应、期望值、实测值和结论保存到 `质检_基础_无字幕_vNN_ep_N.json`。检查文件存在性、时长、比例、帧率、视频流和音轨；字幕开启时还检查 SRT 结构、时码、无标点规则及其与 `spoken_text` 的逐字一致性，并在烧录后对字幕版重复探测与播放。拼接期望时长来自本集实际采用的 SEG、裁剪切点与时间线，不读取规划预估区间，也不要求成片与规划总时长相等；`delivery_manifest_ep_N.json.duration_s` 保存最终交付媒体的真实探测时长，`duration_display` 由该实际值生成，不得拿规划值冒充。期望画幅取已确认 `scale_plan.aspect_ratio`，期望帧率取已确认 `delivery_settings.output_fps`。实际时间线期望时长与媒体探测时长的容差不得超过 `0.5` 秒，比例和帧率容差分别不得超过 `0.01` 相对误差和 `0.1` fps，且必须为有限非负数。确定性错误阻断，字幕持续时间、单行长度和阅读速度异常进入人工复核。
+先对无字幕母版执行当前媒体链的媒体探测并实际播放。原平台把文件路径、输入哈希、真实任务标识、终态响应、期望值、实测值和结论保存到 `质检_基础_无字幕_vNN_ep_N.json`；本地在同一报告保存同步命令、退出码、stdout/stderr 或探测 JSON 证据、实际输出文件及哈希、期望值、实测值和结论，不伪造远端 task ID 或终态响应。检查文件存在性、时长、比例、帧率、视频流和音轨；字幕开启时还检查 SRT 结构、时码、无标点规则及其与 `spoken_text` 的逐字一致性，并在烧录后对字幕版重复探测与播放。期望时长取 `delivery_manifest_ep_N.json.duration_s`，期望画幅取已确认 `scale_plan.aspect_ratio`，期望帧率取已确认 `delivery_settings.output_fps`，不得由执行者临时填写或从待验媒体反推。时长、比例和帧率容差分别不得超过 `0.5` 秒、`0.01` 相对误差和 `0.1` fps，且必须为有限非负数。确定性错误阻断，字幕持续时间、单行长度和阅读速度异常进入人工复核。
+
+每份报告至少保存以下公共字段；原平台或本地路径各自的真实探测、播放与解码证据继续按上一段附加，不用这些公共字段代替原始证据：
+
+```json
+{
+  "status": "deliverable",
+  "media_file": "episodes/ep_1/05_成片/[项目名]_成片_[比例]_无字幕_v01_ep_1.mp4",
+  "media_sha256": "当前验收媒体实际字节的64位小写SHA-256",
+  "expected": {"duration_s": 12, "aspect_ratio": "9:16", "fps": 30},
+  "observed": {"duration_s": 12.08, "aspect_ratio": "9:16", "fps": 30}
+}
+```
+
+`media_file` 必须精确等于本报告对应的当前 `clean_master` 或 `subtitle_master`，不能只写同目录中的旧版本；`media_sha256` 必须匹配该文件当前实际字节。`expected.duration_s` 必须逐值取 `delivery_manifest.duration_s`，`observed.duration_s` 必须来自本次真实媒体探测且为有限正数，两者差值不得超过 `0.5` 秒。字幕关闭时只接受无字幕母版的一份报告；字幕开启时按 `basic_qc_reports` 顺序分别接受无字幕母版、字幕版各一份。任一媒体在报告生成后发生变化，必须重新探测、播放并更新报告，不得沿用旧哈希或旧实测值。
 
 #### 6. 固定字幕参数并烧录
 
@@ -292,7 +312,7 @@ episodes/ep_N/05_成片/字幕_时间轴_vNN_ep_N.srt
 
 本地执行映射为 `python tools/media.py burn <mp4> <srt> <out> --size 36 --pos lower_third`（底部居中使用 `--pos bottom`），读取 `local-runtime.md`。`--size` 为实际像素字号，ASS PlayRes 与真实视频尺寸一致，lower_third 将文字中心定位在高度 70%；先烧录代表帧或短样本查看实际字号与位置，再按原阶段流程处理，不把固定虚拟分辨率下的字号当作像素。
 
-本地 SRT 不能直接传给 `--subtitle-url`，该字段只接受公网 HTTP/HTTPS URL。默认把已验收 SRT 转成等价的字幕对象数组，并通过 `--subtitles` 传入；对象字段固定为 `start_time/end_time/subtitle_text`，时间单位为秒。SRT 仍作为正式交付和文本事实源。
+本地 SRT 不能直接传给 `--subtitle-url`，该字段只接受公网 HTTP/HTTPS URL。默认把已验收 SRT 转成等价的字幕对象数组，并通过 `--subtitles` 传入；对象字段固定为 `start_time/end_time/subtitle_text`，时间单位为秒。SRT 仍作为内部字幕文本事实源，不进入正式 `outputs` 或默认展示。
 
 ```bash
 mediakit-cli editing add-subtitle-to-video \
@@ -315,13 +335,13 @@ mediakit-cli shared query-task \
 1. 从无字幕母版抽取包含人物、关键道具和平台 UI 风险的代表帧。
 2. 用最长字幕、生僻字、数字和英文生成短样片，确认思源黑体字符覆盖。
 3. 抽取每条字幕的首帧、中间帧和尾帧，检查越界、遮脸、遮嘴、遮关键道具、平台 UI 冲突和换行。
-4. 任一字幕不合格时，优先调整 mediakit 已支持的预设或断句并重新烧录；不得切换 FFmpeg 手动烧录。
+4. 任一字幕不合格时，优先调整当前已选媒体链支持的预设或断句并重新烧录；原平台不得绕过 mediakit，本地继续使用 `tools/media.py burn`，不得把两条路径混写为同一次调用。
 
 ### 字幕文件与记录
 
-正式路径和命名只读取 `manifests.md`。本链路必须产生或更新：媒体探测调用信封、ASR 原始信封、ASR 对齐报告、SRT、烧录参数、无字幕母版基础报告、字幕版基础报告和适用的字幕烧录版。拼接过程文件属于中间产物，不在 `delivery_manifest_ep_N.json` 登记为正式输出。
+正式路径和命名只读取 `manifests.md`。本链路必须产生或更新：实际路径的媒体探测证据、ASR 原始信封或人工试听记录、对齐报告、SRT、烧录参数、无字幕母版基础报告、字幕版基础报告和适用的字幕烧录版。拼接过程文件属于中间产物，不在 `delivery_manifest_ep_N.json` 登记为正式输出。
 
-`字幕_烧录参数_vNN_ep_N.json` 至少记录：
+`字幕_烧录参数_vNN_ep_N.json` 至少记录实际采用路径。原平台 mediakit 示例：
 
 ```json
 {
@@ -330,9 +350,10 @@ mediakit-cli shared query-task \
   "language": "cmn-Hans-CN",
   "text_policy": "no_punctuation_commas_to_spaces",
   "subtitle_source": "srt",
+  "execution_path": "mediakit",
   "mediakit_input_mode": "subtitles_json_from_srt",
   "burn_tool": "mediakit_add_subtitle_to_video",
-  "task_id": "",
+  "task_id": "本次真实任务 ID",
   "font_id": "sy_black",
   "font_name": "思源黑体",
   "font_source": "mediakit_builtin",
@@ -350,12 +371,48 @@ mediakit-cli shared query-task \
 }
 ```
 
+本地同步 `tools/media.py burn` 示例：
+
+```json
+{
+  "source_video": "",
+  "asr_source": "实际 ASR 原始信封或人工试听对齐报告路径",
+  "language": "cmn-Hans-CN",
+  "text_policy": "no_punctuation_commas_to_spaces",
+  "subtitle_source": "srt",
+  "execution_path": "local_sync",
+  "local_input_mode": "srt_file",
+  "burn_tool": "python tools/media.py burn",
+  "command": "python tools/media.py burn <mp4> <srt> <out> --size 36 --pos lower_third",
+  "exit_code": 0,
+  "sync_result": {"ok": true, "command": "burn", "output_file": "实际输出路径"},
+  "font_family": "Source Han Sans SC",
+  "font_name": "思源黑体",
+  "font_source": "system_font_via_libass",
+  "font_size": 36,
+  "font_color": "white",
+  "alignment": "lower_third",
+  "position_mode": "ass_explicit_pixel_anchor",
+  "pos_y_percent": 70,
+  "play_res_x": 720,
+  "play_res_y": 1280,
+  "video_width": 720,
+  "video_height": 1280,
+  "ratio": "9:16",
+  "platform": "",
+  "safe_area_basis": "",
+  "burned_video": ""
+}
+```
+
+实际记录只采用当前路径的真实字段和值；本地不得补造 `task_id`、异步 `raw_response` 或 `mediakit_builtin`，原平台也不得把本地同步命令写成远端任务。底部居中时分别使用原平台 `bottom_center` 或本地 `--pos bottom`，并保存对应真实参数。
+
 ### 硬门
 
 - 实际采用路径的对齐证据、规范化 SRT、烧录参数和字幕烧录成片均已落盘并可追溯：mediakit 路径保存 ASR 原始 JSON，人工路径保存带真实音轨哈希和逐句试听时间的 `asr_alignment_report`，不得互相冒充。
 - 无字幕母版与字幕烧录版均有真实媒体探测证据和基础可交付检查报告；mediakit 路径的 `task_id` 非空、终态为 `completed` 且操作名匹配，本地路径按 `local-runtime.md` 保存同步探测事实。
 - 对齐报告不得为 `blocked`。
-- 字幕固定使用 mediakit、思源黑体、36px、白色；9:16 使用 `lower_third / pos_y=70%`，16:9 使用 `bottom_center`。
+- 字幕固定使用当前宿主已选媒体链、思源黑体、36px、白色；9:16 使用 `lower_third / pos_y=70%`，16:9 使用 `bottom_center`。
 - 字幕文本与已确认 `spoken_text` 逐字一致，没有 ASR 或人工听写错字。
 - 字幕文本不含标点；逗号、顿号、分号和冒号已替换为单个空格，其余指定标点已删除。
 - 起止时间必须来自实际 ASR 结果或逐句试听记录，不得猜测或整体平移；合并只使用首句开始和末句结束。

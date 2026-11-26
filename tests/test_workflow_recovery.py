@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
@@ -185,13 +186,21 @@ class WorkflowRecoveryTests(unittest.TestCase):
 
     def test_saved_result_url_recovers_without_history(self):
         self.make_state(result_url="/output/2026/a.mp4")
-        self.fake.add("/api/concurrent/assets", {"assets": []})
         self.fake.add("/output/2026/a.mp4", b"saved-result")
         result = self.poll()
         self.assertEqual(result["recovery_source"], "saved_result_url")
         self.assertEqual(self.out.read_bytes(), b"saved-result")
+        self.assertEqual(self.fake.count("/api/concurrent/assets"), 0)
         self.assertEqual(self.fake.count("/api/images"), 0)
         self.assertEqual(self.fake.count("/api/workflow/result"), 0)
+
+    def test_saved_result_url_has_priority_over_concurrent_asset(self):
+        self.make_state(result_url="/output/saved.mp4")
+        self.fake.add("/output/saved.mp4", b"saved-result")
+        result = self.poll()
+        self.assertEqual(result["recovery_source"], "saved_result_url")
+        self.assertEqual(self.out.read_bytes(), b"saved-result")
+        self.assertEqual(self.fake.paths, ["/output/saved.mp4"])
 
     def test_multiple_exact_assets_and_directory_candidates_are_ambiguous(self):
         self.make_state()
@@ -312,7 +321,52 @@ class FakeProvider:
 
     def poll_segment(self, **kwargs):
         self.poll_calls.append(kwargs)
-        return {"task_id": "task-1", "sha256": "abc", "media": {}}
+        return {"task_id": "task-1", "sha256": "abc", "media": {"duration_s": 14.0}}
+
+
+class ProviderRequestRecoveryTests(unittest.TestCase):
+    def test_existing_task_verifies_complete_original_request_tuple(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / "cloud.json"
+            config.write_text(json.dumps({
+                "protocol": "comfy_workflow_v1",
+                "workflow_id": "wf",
+                "base_url": "https://example.test",
+                "aspect_ratio": "16:9 (Widescreen)",
+                "megapixels": 1.0,
+            }), encoding="utf-8")
+            prompt = root / "prompt.md"
+            prompt.write_text("integrated_multimodal_description: <Picture 1>", encoding="utf-8")
+            image = root / "image.png"
+            image.write_bytes(b"image")
+            entry = {"segment_id": "SEG001", "h3_mode": "Ref2VA", "duration_s": 14}
+            task_file = root / "task.json"
+            output = root / "out.mp4"
+            kwargs = {
+                "config": str(config), "entry": entry, "images": [str(image)],
+                "audio": [], "prompt_file": str(prompt), "output": str(output),
+            }
+            with patch.object(wv, "_http", return_value={"prompt_id": "p1"}) as http:
+                wv.submit_segment(task_file=str(task_file), **kwargs)
+                self.assertEqual(http.call_count, 1)
+                http.reset_mock()
+                wv.verify_task_inputs(str(task_file), **kwargs)
+                http.assert_not_called()
+                for mutation, expected in (
+                    ({"duration_s": 15}, "seconds"),
+                    ({"aspect_ratio": "9:16 (Portrait Widescreen)"}, "aspect_ratio"),
+                    ({"megapixels": 0.5}, "megapixels"),
+                ):
+                    with self.subTest(mutation=mutation):
+                        changed = dict(entry, **mutation)
+                        with self.assertRaisesRegex(wv.WorkflowBackendError, expected):
+                            wv.verify_task_inputs(
+                                str(task_file), **dict(kwargs, entry=changed))
+                        http.assert_not_called()
+                with self.assertRaisesRegex(wv.WorkflowBackendError, "out"):
+                    wv.verify_task_inputs(
+                        str(task_file), **dict(kwargs, output=str(root / "other.mp4")))
 
 
 class SeriesRecoveryTests(unittest.TestCase):
@@ -343,9 +397,10 @@ class SeriesRecoveryTests(unittest.TestCase):
                 self.assertIs(provider.poll_calls[0]["resumed"], resumed)
                 self.assertEqual(receipt["task_id"], "task-1")
                 if resumed:
-                    self.assertEqual(
-                        provider.verify_calls[0][1]["prompt_sha256"],
-                        hashlib.sha256(b"prompt").hexdigest())
+                    verification = provider.verify_calls[0][1]
+                    self.assertEqual(verification["entry"]["segment_id"], "SEG002")
+                    self.assertEqual(Path(verification["output"]).resolve(), (root / "out.mp4").resolve())
+                    self.assertEqual(Path(verification["prompt_file"]).resolve(), (root / "prompt.md").resolve())
 
     def test_recover_without_task_cannot_submit(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -380,9 +435,322 @@ class SeriesRecoveryTests(unittest.TestCase):
         self.assertEqual(last, 1)
         self.assertEqual(confirmations, {"SEG002": "VC001"})
 
+    def test_returned_media_must_match_requested_duration_within_encoding_tolerance(self):
+        cases = [
+            ({}, "缺少有限非负"),
+            ({"duration_s": float("nan")}, "缺少有限非负"),
+            ({"duration_s": 13.49}, "超过 0.5 秒"),
+        ]
+        for media, message in cases:
+            with self.subTest(media=media), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "prompt.md").write_text("prompt", encoding="utf-8")
+                entry = {
+                    "segment_id": "SEG001", "duration_s": 14,
+                    "task_file": "task.json", "output_file": "out.mp4",
+                    "prompt_file": "prompt.md", "images": [], "audio": [],
+                }
+                provider = FakeProvider()
+                provider.poll_segment = lambda **kwargs: {
+                    "task_id": "task-1", "sha256": "abc", "media": media,
+                }
+                context = ws.SegmentExecutionContext(
+                    root=root, queue={"cloud_config": "cloud.json"}, entry=entry,
+                    by_id={}, run_state={"segments": {}},
+                    args=argparse.Namespace(timeout=1, interval=0), output=root / "out.mp4",
+                    provider=provider,
+                )
+                with patch.object(ws, "_images", return_value=[]):
+                    with self.assertRaisesRegex(ws.SeriesError, message):
+                        ws.GeneratedSegmentStrategy().execute(context)
+
+    def test_returned_media_accepts_half_second_encoding_tolerance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "prompt.md").write_text("prompt", encoding="utf-8")
+            entry = {
+                "segment_id": "SEG001", "duration_s": 14,
+                "task_file": "task.json", "output_file": "out.mp4",
+                "prompt_file": "prompt.md", "images": [], "audio": [],
+            }
+            provider = FakeProvider()
+            provider.poll_segment = lambda **kwargs: {
+                "task_id": "task-1", "sha256": "abc",
+                "media": {"duration_s": 14.5},
+            }
+            context = ws.SegmentExecutionContext(
+                root=root, queue={"cloud_config": "cloud.json"}, entry=entry,
+                by_id={}, run_state={"segments": {}},
+                args=argparse.Namespace(timeout=1, interval=0), output=root / "out.mp4",
+                provider=provider,
+            )
+            with patch.object(ws, "_images", return_value=[]):
+                _, receipt = ws.GeneratedSegmentStrategy().execute(context)
+            self.assertEqual(receipt["media"]["duration_s"], 14.5)
+
+    def test_direct_execution_rejects_unknown_operation_and_multiple_generates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            entry = {
+                "segment_id": "SEG001", "operation": "unknown",
+                "output_file": "out.mp4", "task_file": "task.json",
+            }
+            with self.assertRaisesRegex(ws.SeriesError, "拒绝落入生成路径"):
+                ws._execute_one(
+                    root, {"cloud_config": "cloud.json"}, entry, {},
+                    {"segments": {}}, root / "run.json",
+                    argparse.Namespace(timeout=1, interval=0), FakeProvider())
+        entries = [
+            {"segment_id": "SEG001", "operation": "generate"},
+            {"segment_id": "SEG002", "operation": "generate"},
+        ]
+        args = argparse.Namespace(
+            authorized_segment=["SEG001", "SEG002"],
+            confirmation=["SEG001=VC001", "SEG002=VC002"])
+        with self.assertRaisesRegex(ValueError, "最多一个新 generate"):
+            ws._authorized_scope(entries, args)
+
     def test_series_has_no_direct_autodl_adapter_dependency(self):
         self.assertFalse(hasattr(ws, "wv"))
         self.assertFalse(hasattr(ws, "common"))
+
+
+class SeriesQueueContinuationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.queue_file = self.root / "queue.json"
+        self.run_file = self.root / "run.json"
+        self.binding = {"video_provider": "fake", "video_provider_adapter_version": "1"}
+        (self.root / "old.mp4").write_bytes(b"old-output")
+        (self.root / "old.png").write_bytes(b"old-tail")
+        self.output_sha = ws.sha256_file(self.root / "old.mp4")
+        self.tail_sha = ws.sha256_file(self.root / "old.png")
+        self.old_receipt = {
+            "phase": "tail_ready",
+            "output_file": "old.mp4",
+            "output_sha256": self.output_sha,
+            "tail": {
+                "file": "old.png",
+                "sha256": self.tail_sha,
+                "source_video_sha256": self.output_sha,
+            },
+        }
+        old_entry = self.entry("SEG001", "generate")
+        self.queue_file.write_text(json.dumps({"segments": [old_entry]}), encoding="utf-8")
+        self.run_file.write_text(json.dumps({
+            "queue_sha256": ws.sha256_file(self.queue_file),
+            **self.binding,
+            "segments": {"SEG001": self.old_receipt},
+        }), encoding="utf-8")
+        self.current_queue = {
+            "run_state_file": "run.json",
+            "cloud_config": "cloud.json",
+            "segments": [self.entry("SEG001", "reuse"), self.entry("SEG002", "generate")],
+        }
+        self.queue_file.write_text(json.dumps(self.current_queue), encoding="utf-8")
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    @staticmethod
+    def entry(segment_id, operation):
+        return {
+            "segment_id": segment_id,
+            "operation": operation,
+            "duration_s": 14,
+            "output_file": "old.mp4" if segment_id == "SEG001" else "new.mp4",
+            "task_file": f"{segment_id}.task.json",
+            "tail_file": "old.png" if segment_id == "SEG001" else "new.png",
+            "prompt_file": f"{segment_id}.md",
+            "images": [],
+            "audio": [],
+        }
+
+    def test_next_queue_version_preserves_history_and_superseded_hash(self):
+        previous_sha = json.loads(self.run_file.read_text(encoding="utf-8"))["queue_sha256"]
+        state = ws._load_run_state(
+            self.run_file, self.queue_file, self.binding, self.root, self.current_queue)
+        self.assertEqual(state["queue_sha256"], ws.sha256_file(self.queue_file))
+        self.assertEqual(state["superseded_queue_sha256"], [previous_sha])
+        self.assertEqual(state["segments"]["SEG001"], self.old_receipt)
+
+    def test_queue_change_cannot_reauthorize_or_redirect_history(self):
+        for mutation in ("operation", "output", "order", "incomplete", "missing_sha"):
+            with self.subTest(mutation=mutation):
+                queue = json.loads(json.dumps(self.current_queue))
+                state = json.loads(self.run_file.read_text(encoding="utf-8"))
+                self.run_file.write_text(json.dumps(state), encoding="utf-8")
+                if mutation == "operation":
+                    queue["segments"][0]["operation"] = "generate"
+                elif mutation == "output":
+                    queue["segments"][0]["output_file"] = "other.mp4"
+                elif mutation == "order":
+                    queue["segments"].reverse()
+                elif mutation == "incomplete":
+                    state["segments"]["SEG001"]["phase"] = "complete"
+                    self.run_file.write_text(json.dumps(state), encoding="utf-8")
+                else:
+                    state.pop("queue_sha256")
+                    self.run_file.write_text(json.dumps(state), encoding="utf-8")
+                self.queue_file.write_text(json.dumps(queue), encoding="utf-8")
+                with self.assertRaises(ws.SeriesError):
+                    ws._load_run_state(
+                        self.run_file, self.queue_file, self.binding, self.root, queue)
+
+    def test_second_run_reuses_first_segment_and_generates_only_new_segment(self):
+        provider = FakeProvider()
+        args = argparse.Namespace(
+            queue=str(self.queue_file), project_root=str(self.root),
+            authorized_segment=["SEG002"], confirmation=["SEG002=VC002"],
+            timeout=1, interval=0,
+        )
+        new_tail = {
+            "file": "new.png", "sha256": "new-tail", "source_video_sha256": "abc",
+        }
+        with patch.object(ws, "cmd_preflight", return_value={
+                "ok": True, "project_root": str(self.root)}) as preflight, \
+                patch.object(ws, "_resolve_provider", return_value=(provider, self.binding, None)), \
+                patch.object(ws, "_extract_tail", return_value=new_tail):
+            result = ws.cmd_run(args)
+        self.assertTrue(preflight.call_args.args[0].require_confirmed)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["completed_segments"], ["SEG001", "SEG002"])
+        self.assertEqual(len(provider.submit_calls), 1)
+        self.assertEqual(provider.submit_calls[0]["entry"]["segment_id"], "SEG002")
+        state = json.loads(self.run_file.read_text(encoding="utf-8"))
+        self.assertEqual(state["segments"]["SEG001"]["phase"], "reused_tail_ready")
+        self.assertEqual(state["segments"]["SEG002"]["confirmation_id"], "VC002")
+        self.assertEqual(state["queue_sha256"], ws.sha256_file(self.queue_file))
+
+
+class ExecutionConfirmationBindingTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name).resolve()
+        self.folder = self.root / "episodes/ep_1/04_视频片段"
+        self.folder.mkdir(parents=True)
+        self.queue_file = self.folder / "串行执行.json"
+        self.manifest_file = self.folder / "video_manifest_ep_1.json"
+        self.binding = {
+            "video_provider": "autodl",
+            "video_provider_adapter_version": "1",
+            "video_provider_adapter_sha256": "a" * 64,
+            "cloud_config_sha256": "b" * 64,
+        }
+        self.queue = {
+            "schema_version": "1.0",
+            "video_provider": "autodl",
+            "segments": [{
+                "segment_id": "SEG001", "operation": "generate",
+                "confirmation_id": "VC001", "duration_s": 14,
+            }],
+        }
+        self.save()
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def confirmation(self, confirmation_id="VC001", *, supersedes=None):
+        return {
+            "confirmation_id": confirmation_id,
+            "batch_start_segment_index": 1,
+            "batch_end_segment_index": 1,
+            "planned_video_count": 1,
+            "duration_s": 14,
+            "model": "H3",
+            "interaction_ask_result": "generate",
+            "interaction_ask_call_id": "local:confirmation-1",
+            "user_message": "确认生成当前 SEG",
+            "confirmed_at": "2026-11-25T00:00:00+00:00",
+            "confirmation_transport": "user_message",
+            "execution_mode": "serial_real_tail_chain",
+            "run_plan_file": "episodes/ep_1/04_视频片段/串行执行.json",
+            "run_plan_sha256": ws.sha256_file(self.queue_file),
+            "supersedes_confirmation_ids": supersedes or [],
+            **self.binding,
+        }
+
+    def save(self, confirmations=None):
+        self.queue_file.write_text(json.dumps(self.queue), encoding="utf-8")
+        manifest = {
+            "segments": [{
+                "segment_id": "SEG001", "episode_segment_index": 1,
+                "duration_s": 14, "video_provider": "autodl",
+            }],
+            "generation_confirmations": confirmations or [self.confirmation()],
+        }
+        self.manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+
+    def verify(self, binding=None):
+        ws._verify_execution_confirmations(
+            self.queue_file, self.root, self.queue, binding or self.binding)
+
+    def test_initial_preflight_returns_binding_without_confirmation_cycle(self):
+        self.manifest_file.unlink()
+        prompt = self.folder / "prompt.md"
+        prompt.write_text("compiled H3 prompt", encoding="utf-8")
+        image = self.folder / "input.png"
+        image.write_bytes(b"image")
+        relative = lambda path: path.relative_to(self.root).as_posix()
+        self.queue["segments"][0].update({
+            "prompt_file": relative(prompt),
+            "images": [{"file": relative(image)}],
+            "audio": [],
+            "output_file": "episodes/ep_1/04_视频片段/out.mp4",
+            "task_file": "episodes/ep_1/04_视频片段/task.json",
+            "tail_file": "episodes/ep_1/04_视频片段/tail.png",
+        })
+        self.queue_file.write_text(json.dumps(self.queue), encoding="utf-8")
+        provider = SimpleNamespace(prompt_markers=lambda prompt, records: {})
+        base_args = {"queue": str(self.queue_file), "project_root": str(self.root),
+                     "require_ready": False}
+        with patch.object(ws, "_resolve_provider",
+                          return_value=(provider, self.binding, None)):
+            initial = ws.cmd_preflight(argparse.Namespace(
+                **base_args, require_confirmed=False))
+            execution = ws.cmd_preflight(argparse.Namespace(
+                **base_args, require_confirmed=True))
+        self.assertTrue(initial["ok"])
+        self.assertEqual(ws.sha256_file(self.queue_file), initial["run_plan_sha256"])
+        self.assertEqual("autodl", initial["video_provider"])
+        self.assertFalse(execution["ok"])
+        self.assertIn("generation_confirmation_binding",
+                      {item["code"] for item in execution["issues"]})
+
+    def test_latest_confirmation_binds_real_queue_and_complete_provider_tuple(self):
+        self.verify()
+
+    def test_queue_mutation_invalidates_confirmation_bytes(self):
+        self.queue_file.write_text(
+            self.queue_file.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(ws.SeriesError, "实际路径和字节"):
+            self.verify()
+
+    def test_old_confirmation_cannot_authorize_current_segment(self):
+        current = self.confirmation("VC002", supersedes=["VC001"])
+        current["confirmed_at"] = "2026-11-25T00:01:00+00:00"
+        self.save([self.confirmation("VC001"), current])
+        with self.assertRaisesRegex(ws.SeriesError, "最新有效确认"):
+            self.verify()
+
+    def test_provider_adapter_and_cloud_binding_mismatches_are_rejected(self):
+        for field in self.binding:
+            with self.subTest(field=field):
+                binding = dict(self.binding)
+                binding[field] = "changed"
+                with self.assertRaises(ws.SeriesError):
+                    self.verify(binding)
+
+    def test_replaced_confirmation_must_declare_supersession(self):
+        current = self.confirmation("VC002")
+        current["confirmed_at"] = "2026-11-25T00:01:00+00:00"
+        self.queue["segments"][0]["confirmation_id"] = "VC002"
+        self.queue_file.write_text(json.dumps(self.queue), encoding="utf-8")
+        current["run_plan_sha256"] = ws.sha256_file(self.queue_file)
+        self.save([self.confirmation("VC001"), current])
+        with self.assertRaisesRegex(ws.SeriesError, "显式替代"):
+            self.verify()
 
 
 class ProviderSelectionTests(unittest.TestCase):
@@ -409,6 +777,37 @@ class ProviderSelectionTests(unittest.TestCase):
         self.assertEqual(binding["video_provider"], "autodl")
         self.assertEqual(binding["video_provider_adapter_version"], wv.ADAPTER_VERSION)
         self.assertEqual(len(binding["video_provider_adapter_sha256"]), 64)
+
+    def test_adapter_binding_changes_when_execution_dependency_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "adapter.py"
+            dependency = root / "lib/dependency.py"
+            dependency.parent.mkdir()
+            source.write_text("adapter = 1", encoding="utf-8")
+            dependency.write_text("value = 1", encoding="utf-8")
+            adapter = SimpleNamespace(
+                __file__=str(source), PROVIDER_ID="fake", ADAPTER_VERSION="1",
+                EXECUTION_DEPENDENCY_FILES=("lib/dependency.py",),
+            )
+            before = video_providers.adapter_binding(adapter)
+            dependency.write_text("value = 2", encoding="utf-8")
+            after = video_providers.adapter_binding(adapter)
+        self.assertNotEqual(
+            before["video_provider_adapter_sha256"],
+            after["video_provider_adapter_sha256"],
+        )
+
+    def test_adapter_binding_rejects_dependency_outside_tools(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "adapter.py"
+            source.write_text("adapter = 1", encoding="utf-8")
+            adapter = SimpleNamespace(
+                __file__=str(source), PROVIDER_ID="fake", ADAPTER_VERSION="1",
+                EXECUTION_DEPENDENCY_FILES=("../outside.py",),
+            )
+            with self.assertRaises(video_providers.ProviderSelectionError):
+                video_providers.adapter_binding(adapter)
 
     def test_run_state_rejects_provider_or_adapter_switch(self):
         with tempfile.TemporaryDirectory() as directory:

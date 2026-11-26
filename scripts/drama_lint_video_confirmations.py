@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+import hashlib
+import json
 import re
 from typing import Any
 
@@ -246,6 +248,10 @@ class SegmentAuthorizationRule:
     REQUIRED_FIELDS = (
         "confirmation_id",
         "model",
+        "video_provider",
+        "video_provider_adapter_version",
+        "video_provider_adapter_sha256",
+        "cloud_config_sha256",
         "aspect_ratio",
         "duration_s",
         "planned_video_count",
@@ -303,6 +309,86 @@ class SegmentAuthorizationRule:
             reporter.error("video_continuous_tail_not_ready", f"{segment_id} 是 continuous 段；确认前必须已登记上一段真实 tail FRM、真实文件和来源关系。不得以未来 tail 依赖或计划路径代替。")
 
 
+class SerialRunBindingRule:
+
+    @staticmethod
+    def _sha256(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(block)
+        return digest.hexdigest()
+
+    def validate(self, record: GenerationConfirmation, reporter: ConfirmationReporter) -> None:
+        if not record.serial_run:
+            return
+        manifest_path = reporter.path.resolve()
+        if manifest_path.parent.name != "04_视频片段" or not re.fullmatch(
+                r"video_manifest_ep_\d+\.json", manifest_path.name):
+            return
+        try:
+            root = manifest_path.parents[3]
+        except IndexError:
+            return
+        run_plan_file = str(record.item.get("run_plan_file") or "").strip()
+        if not run_plan_file or Path(run_plan_file).is_absolute() or ".." in Path(run_plan_file).parts:
+            return
+        queue_path = (root / run_plan_file).resolve()
+        try:
+            queue_path.relative_to(root)
+        except ValueError:
+            reporter.error("video_serial_run_plan_invalid", "run_plan_file 必须留在项目根目录内。")
+            return
+        if queue_path.parent != manifest_path.parent or queue_path.name != "串行执行.json":
+            reporter.error("video_serial_run_plan_path_mismatch", "最新确认必须绑定同集 04_视频片段/串行执行.json。")
+            return
+        try:
+            queue_bytes = queue_path.read_bytes()
+            queue = json.loads(queue_bytes.decode("utf-8-sig"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            reporter.error("video_serial_run_plan_unreadable", f"无法读取最新确认绑定的真实 queue：{exc}")
+            return
+        if not isinstance(queue, dict) or not isinstance(queue.get("segments"), list):
+            reporter.error("video_serial_run_plan_invalid", "真实 queue 必须是包含 segments 数组的对象。")
+            return
+        if record.item.get("run_plan_sha256") != hashlib.sha256(queue_bytes).hexdigest():
+            reporter.error("video_serial_run_plan_hash_mismatch", "最新确认的 run_plan_sha256 必须等于当前 queue 实际字节 SHA-256；queue 变化后必须重新预检与确认。")
+        provider = record.item.get("video_provider")
+        if queue.get("video_provider") != provider:
+            reporter.error("video_generation_provider_queue_mismatch", "最新确认的 video_provider 必须匹配固定 queue。")
+        for field_name in ("video_provider_adapter_sha256", "cloud_config_sha256"):
+            if not re.fullmatch(r"[0-9a-f]{64}", str(record.item.get(field_name) or "")):
+                reporter.error("video_generation_provider_binding_hash_invalid", f"{field_name} 必须是 64 位小写 SHA-256。")
+        cloud_config = queue.get("cloud_config")
+        try:
+            if not isinstance(cloud_config, str) or Path(cloud_config).is_absolute() or ".." in Path(cloud_config).parts:
+                raise ValueError("cloud_config 必须是项目相对路径")
+            cloud_path = (root / cloud_config).resolve()
+            cloud_path.relative_to(root)
+            actual_cloud_sha256 = self._sha256(cloud_path)
+        except (OSError, ValueError) as exc:
+            reporter.error("video_generation_cloud_config_unreadable", f"无法核验确认绑定的 cloud config：{exc}")
+        else:
+            if record.item.get("cloud_config_sha256") != actual_cloud_sha256:
+                reporter.error("video_generation_cloud_config_hash_mismatch", "最新确认的 cloud_config_sha256 必须等于当前配置实际字节 SHA-256。")
+        queue_by_id = {
+            item.get("segment_id"): item for item in queue["segments"]
+            if isinstance(item, dict) and isinstance(item.get("segment_id"), str)
+        }
+        for segment in record.expected_segments:
+            segment_id = segment.get("segment_id")
+            if segment.get("video_provider") != provider:
+                reporter.error("video_generation_provider_segment_mismatch", f"{segment_id} 的 video_provider 必须匹配最新确认。")
+            entry = queue_by_id.get(segment_id)
+            if not isinstance(entry, dict):
+                reporter.error("video_serial_run_segment_missing", f"当前 queue 未登记已确认片段 {segment_id}。")
+                continue
+            if entry.get("operation") != "reuse" and entry.get("confirmation_id") != record.confirmation_id:
+                reporter.error("video_serial_run_confirmation_mismatch", f"{segment_id} 的 queue confirmation_id 必须等于该 SEG 最新有效确认。")
+            if entry.get("duration_s") != segment.get("duration_s"):
+                reporter.error("video_serial_run_segment_duration_mismatch", f"{segment_id} 的 queue 时长必须与 video_manifest 一致。")
+
+
 class DurationConfirmationRule:
     def validate(self, record: GenerationConfirmation, reporter: ConfirmationReporter) -> None:
         segment_durations = record.item.get("segment_durations")
@@ -338,6 +424,7 @@ class PlanningParameterDisplayPolicy(ParameterDisplayPolicy):
         "total_duration",
         "aspect_ratio_and_resolution",
         "model",
+        "video_provider",
         "visual_and_continuity",
         "audio_and_subtitles",
         "reference_materials",
@@ -354,6 +441,9 @@ class PlanningParameterDisplayPolicy(ParameterDisplayPolicy):
             reporter.error("lightweight_planning_parameters_incomplete", f"轻量模式规划参数缺少视频生成确认字段：{missing_fields}")
         if displayed.get("quantity") != 1:
             reporter.error("lightweight_planning_quantity_invalid", "轻量模式视频数量必须为 1。")
+        provider = str(record.item.get("video_provider") or "").strip()
+        if provider and provider.casefold() not in str(displayed.get("video_provider") or "").casefold():
+            reporter.error("lightweight_planning_provider_mismatch", "轻量规划展示的视频生成后端必须匹配确认记录 video_provider。")
         for field_name, value in displayed.items():
             for rendered in value if isinstance(value, list) else [value]:
                 if str(rendered).strip() and str(rendered).strip() not in record.final_text:
@@ -368,6 +458,7 @@ class BatchParameterDisplayPolicy(ParameterDisplayPolicy):
         "total_duration",
         "aspect_ratio_and_resolution",
         "model",
+        "video_provider",
         "visual_and_continuity",
         "audio_and_subtitles",
         "reference_materials",
@@ -397,6 +488,10 @@ class BatchParameterDisplayPolicy(ParameterDisplayPolicy):
                 reporter.error("video_generation_parameter_table_text_mismatch", f"合并参数确认表展示文本缺少 {field_name} 的确认值。")
         self._validate_durations(record, displayed, reporter)
         self._validate_format(record, displayed, reporter)
+        provider = str(record.item.get("video_provider") or "").strip()
+        displayed_provider = str(displayed.get("video_provider") or "").strip()
+        if provider and provider.casefold() not in displayed_provider.casefold():
+            reporter.error("video_generation_displayed_provider_mismatch", "参数确认表中的视频生成后端必须匹配本批次 video_provider。")
 
     def _validate_durations(self, record: GenerationConfirmation, displayed: dict[str, Any], reporter: ConfirmationReporter) -> None:
         displayed_durations = displayed.get("segment_durations")
@@ -559,6 +654,7 @@ class VideoGenerationConfirmationValidator:
         self.supersession = SupersessionRule()
         self.authorization = SegmentAuthorizationRule()
         self.durations = DurationConfirmationRule()
+        self.serial_binding = SerialRunBindingRule()
         self.final = FinalConfirmationRule()
         self.audit = GeneratedSegmentAuditRule()
 
@@ -585,6 +681,10 @@ class VideoGenerationConfirmationValidator:
             self.authorization.validate(record, catalog, self.reporter)
             self.durations.validate(record, self.reporter)
             self.final.validate(record, self.reporter)
+        for segment_index in sorted({record.start for record in ledger.records}):
+            matching = ledger.matching(segment_index)
+            if matching:
+                self.serial_binding.validate(matching[-1], self.reporter)
         self.audit.validate(catalog, ledger, self.reporter)
 
 

@@ -2,6 +2,15 @@
 
 当用户提出完整短剧、剧情短视频、微电影、连续故事或长篇剧本制作需求时，先读取本文件。本文件是规划字段、参数确认表和规划状态提交的唯一权威。规划阶段位于剧本之前，是六个生产阶段的前置条件；它负责把目标、受众、卖点、策略、风格、规模、风险和验收方法变成结构化合同，不提前写完整剧情、逐镜分镜、资产 Prompt 或视频 Prompt。
 
+## 本 Ref 关键要求
+
+- 先锁定用户明确要求的主体、动作、场景、风格、时长、比例、镜头方式、台词和禁止项；创意扩充只能发生在未锁定空间，并服务整部作品。
+- 规划只锁目标、受众、题材策略、风格、规模、模型、风险和验收方法，不提前写完整剧本、资产 Prompt 或视频 Prompt。
+- 参数确认表必须在当前对话中直接展示并等待用户确认；模型、时长、画幅和交付范围确认前不得进入剧本。
+- 多集短剧默认按集分别交付成片；只有用户明确要求合集，或形态为单条短片、微电影、单部长视频时，才规划单个完整视频。
+- 涉及真实人物、品牌、平台规则、热点或“最新”信息时先检索并记录日期。
+- 所有未确认事实写为待验证假设，不能伪装成用户要求或可靠事实。
+
 ## 目标
 
 在投入剧本、资产和生成额度前回答：
@@ -13,14 +22,14 @@
 - 采用什么呈现形态、题材、冲突和叙事机制。
 - 使用什么可执行视觉锚点，哪些风格机制明确排除。
 - 情绪如何起伏和兑现，但不套固定秒数、固定气爽比例或固定反转频率。
-- 交付什么内容形态、多少集、每集及总时长的预估参考区间、什么画幅，分别使用什么生图模型、视频模型、视频生成后端和视频生成确认轮次；完整模式必须包含每集 `3-4` 张剧情高光关键帧阶段；输出语言、视频语言和字幕语言静默写入内部合同，不作为参数确认项；字幕默认关闭及交付方式必须作为参数确认项告知用户，用户明确要求字幕时才在最终音轨锁定后的成片阶段生成并烧录字幕。
+- 交付什么内容形态、多少集、每集及总时长、什么画幅，分别使用什么生图模型、视频模型、视频生成后端和视频生成确认轮次；完整模式必须包含每集 `3-4` 张剧情高光关键帧阶段；输出语言、视频语言和字幕语言静默写入内部合同，不作为参数确认项；字幕默认关闭及交付方式必须作为参数确认项告知用户，用户明确要求字幕时才在最终音轨锁定后的成片阶段生成并烧录字幕。
 - 多集项目是逐集成片交付还是用户明确要求的合集交付；未说明时默认逐集交付。完整模式必须明确写入“先锁全局故事圣经、全部分集推进总纲和最终结局，再按集执行详细剧本 -> 资产 -> 分镜 -> 关键帧 -> 视频 -> 成片确认”的生产顺序。
 - 哪些事实、授权、平台政策和敏感内容仍需核实。
 - 后续六个生产阶段分别如何验收。
 
 ## 边界
 
-- 完整模式规划阶段不写完整剧情梗概、人物小传、分场剧本或完整台词；这些属于 `scriptwriter.md`。轻量模式没有独立剧本确认门，唯一例外是五列预览必须完整列出本条视频实际使用的全部台词、旁白和画外音，供一次生成确认锁定。
+- 规划阶段不写完整剧情梗概、人物小传、分场剧本或完整台词；这些属于 `scriptwriter.md`。
 - 参数确认表固定使用下文规定的逐行字段语义和顺序，不使用 Markdown 表格；字段显示名必须按 `language_contract.output_language` 本地化。其后必须按内容形态选择下文唯一适用的五列“分镜预览表/剧情节奏预览表”，预览表可以使用 Markdown 表格。不得改字段语义、顺序、增删列或混入内部工具、路由、schema、状态和代码字段。
 - 不生成角色、场景、道具、音色、图片或视频。
 - 不把 `题材受众库.md` 的画像、市场倾向和平台偏好伪装成实时事实。
@@ -70,7 +79,7 @@
 9. **建立亮点策略**：从 `题材亮点与传播库.md` 选择或自定义一条主故事发动机，写出项目签名、亮点支柱、跨集分布与明确排除的俗套。亮点必须同时说明题材职责和呈现类别表达。
 10. **建立导演与视觉合同**：规划阶段只形成一张导演总控卡的项目级输入，把视觉风格并入同一决策中心，至少包含媒介形态、构图骨架、光线方向、色彩关系、材质、镜头质感、字体/版式和明确剥离项；禁止另建“强风格系统卡”，也禁止只写“电影感”“高级感”。
 11. **推导节奏波形**：不套固定时段模板。先列出不可移动的内容节点；判断每个节点的信息密度、动作强度和阅读时间；确定唯一主重拍；决定节点之间使用切镜还是镜内连续；先保证动作和核心证明，再分配剩余时长；最后用 `1-5` 强度序列检查是否过平或全程过强。可选波形包括“快起 -> 稳证 -> 快收”“逐级加速 -> 高光 -> 短停”“快慢交替 -> 汇聚”“连续推进 -> 节点变速”“结果前置 -> 倒推线索 -> 原因揭示”“稳态建立 -> 突然打断 -> 连续应对 -> 新稳定”“单点触发 -> 层层扩散 -> 整体响应 -> 回收”“两线交替 -> 节奏对齐 -> 汇合”“问题脉冲 -> 回答脉冲 -> 证据停留”“克制积累 -> 局部释放 -> 完整爆发 -> 余韵”“建立规则 -> 两次变奏 -> 打破规则 -> 新规则收束”“起点 -> 偏离 -> 回归 -> 无缝 Loop”。按项目因果选择或自定义，不把候选波形变成新模板。
-12. **规划规模、模型与后端**：分别记录生图模型、视频模型和视频生成 provider；provider 是执行后端，不是视频模型，具体注册、协议和适配器合同读取 `video-provider.md`。面向用户使用自然名称，不展示内部模块、接口、路由或宿主能力。当前只有一个兼容 provider 时，记录该真实选项，不虚构第二种选择；存在多个兼容 provider 时，在“视频生成后端”项列出可选自然名称并给出推荐待确认值，用户可以改选，确认后锁定。同步确认内容形态、集数、单集与总时长的预估参考区间、画幅、片段上限、资产复杂度、最终交付形式和字幕交付方式；这些时间只帮助用户理解规模和预算，不是后续必须凑够的指标。用户明确锁定精确时长时准确保留该要求；轻量模式保留唯一视频的真实执行时长。输出语言、视频语言和字幕语言静默写入内部合同，不在参数确认表中展示或询问。多集短剧默认逐集交付；只有用户明确要求合集时才规划合集版。当前唯一视频模型为 `H3`，所有 SEG 均为 `4-15` 整数秒；超出单段容量的项目按自然切点分段，不得自主切换模型或 provider。
+12. **规划规模与工具**：内部记录生图与视频的实际执行方式；面向用户只确认生图模型、视频模型和视频生成后端名称，不展示工具名、路由或宿主能力。视频生成 provider 是执行后端，不是视频模型，具体注册、协议和适配器合同读取 `video-provider.md`；存在多个兼容 provider 时列出真实自然名称并给出推荐待确认值，确认后锁定。同步确认内容形态、集数、单集和总时长、画幅、片段上限、资产复杂度、最终交付形式和字幕交付方式；输出语言、视频语言和字幕语言静默写入内部合同，不在参数确认表中展示或询问。多集短剧默认逐集交付；只有用户明确要求合集时才规划合集版。当前唯一视频模型为 `H3`，所有 SEG 均为 `4-15` 整数秒，不得自主切换模型或 provider。
 13. **预判风险**：登记事实、授权、平台、敏感内容、长篇漂移和技术可拍性风险及缓解措施。集数超过 `10` 时，必须把剧情、人设、伏笔和资产漂移风险写入参数确认表，并说明先锁项目级故事圣经、全部分集推进总纲、人物弧、伏笔账本与结局，随后逐集生成详细剧本和完整制作；该提示属于参数确认表的一部分。
 14. **设计验收**：为规划、剧本、资产、分镜、关键帧、视频和成片分别写可验证检查项。
 15. **编译强制参数确认表**：规划完成后先按下方固定结构生成待展示正文，但此时不得向用户发送；所有值必须预先填写，不向用户留空或要求用户填表，也不得增加“工具能力”“路由”“状态”“内部检查”等内容。
@@ -80,7 +89,7 @@
 
 参数确认表是规划完成后的第一项对用户动作，但“完成”以步骤 17 的落盘和内部检查通过为准；步骤 15 只在内部编译正文，不构成展示或交付。
 
-状态提交规则：`制作状态.json` 是唯一状态源。完整模式 `video|final` 目标按 `control-contracts.md` 调用项目执行确认，完整模式其他目标使用普通规划确认；轻量模式在完整参数与五列预览展示后，直接按 `interaction-ask-video-clarification-ref.md` 调用标准视频生成确认，只有 `generate` 才同时完成规划确认并授权当前唯一视频。确认后，完整模式进入项目级 `script`；轻量模式将 `script|assets|storyboard|keyframes|video` 写为 `merged` 并进入 `ep_1.final`。非 Mobile 下，只有流程将进入 `assets|storyboard|keyframes|video|final` 并实际生成图片或视频时，才把 Workspace 初始化或复用作为确认成功后的第一项执行动作；纯规划或纯剧本目标不初始化。
+状态提交规则：`制作状态.json` 是唯一状态源。完整模式 `video|final` 目标按 `control-contracts.md` 调用项目执行确认，完整模式其他目标使用普通规划确认；轻量模式在完整参数与五列预览展示后，直接按 `interaction-ask-video-clarification-ref.md` 调用标准视频生成确认，只有 `generate` 才同时完成规划确认并授权当前唯一视频。确认后，完整模式进入项目级 `script`；轻量模式将 `script|assets|storyboard|keyframes|video` 写为 `merged` 并进入 `ep_1.final`。仅原平台非 Mobile 分支中，只有流程将进入 `assets|storyboard|keyframes|video|final` 并实际生成图片或视频时，才把 Workspace 初始化或复用作为确认成功后的第一项执行动作；纯规划或纯剧本目标不初始化。
 
 ## 创意机制选择算法
 
@@ -93,7 +102,7 @@
 5. **执行可持续测试**：逐个候选推演至少一轮“目标 -> 阻力 -> 策略 -> 反馈 -> 新局势”。多集项目再推演建立、变奏、升级、回收四个阶段。无法自然产生下一轮选择与代价、只能依赖巧合、反派无理由犯错或临时新增设定的候选淘汰。
 6. **按顺序筛选**：先淘汰违反用户锁定项和禁用项的候选，再淘汰无法完成核心证明的候选，再比较人物/资产/场景跨段连续性，最后比较在已确认模型和时长内的生成稳定性。不得用生成方便覆盖用户匹配或高潮证明；只有前一层都成立时才比较后一层。
 7. **锁定与记录**：把唯一主机制写入 `creative_mechanism.primary`，只保留与它同向且不会争夺高潮解释权的 `1-3` 个辅助机制；`selection_evidence` 分别记录用户匹配、核心证明、连续性、生成稳定性和淘汰理由。`selected_direction_id` 必须指向采用候选，面向用户默认只展示采用方案。
-8. **检查与回退**：若三个候选无法通过反换皮测试，回到第 2 步重写机制问题；若所有候选都违反用户锁定项，停止发散并改为 `user_locked`；若采用候选的事件量明显超出当前预估规模，先调整事件范围或更新预估区间，再重新筛选，不得为了落回参考区间直接删掉高潮证明、必要动作或反应。
+8. **检查与回退**：若三个候选无法通过反换皮测试，回到第 2 步重写机制问题；若所有候选都违反用户锁定项，停止发散并改为 `user_locked`；若采用候选无法在时长内完成“发动 -> 升级 -> 证明”，先缩小事件范围或调整规模，再重新筛选，不得直接删掉高潮证明。
 
 ## 交付物
 
@@ -118,7 +127,7 @@ highlight_strategy: primary_story_engine_id, secondary_story_engine_id, secondar
 style_contract: anchor_type, anchor, lighting, color, composition, material, camera_tendency, sound_tendency, excluded_mechanisms
 emotion_design: curve_type, stages[], character_curves[]
 rhythm_design: immutable_nodes[], node_loads[], primary_downbeat, transition_choices[], duration_allocation, intensity_sequence[], selected_wave
-scale_plan: format_mode, episode_count, duration_semantics, estimated_episode_duration_ranges_s, estimated_episode_duration_displays, estimated_total_duration_range_s, estimated_total_duration_display, episode_durations_s, episode_duration_displays, total_duration_s, total_duration_display, duration_display_mode, aspect_ratio, segment_duration_policy, video_confirmation_policy
+scale_plan: format_mode, episode_count, episode_durations_s, episode_duration_displays, total_duration_s, total_duration_display, duration_display_mode, aspect_ratio, segment_duration_policy, video_confirmation_policy
 model_plan: image, video, video_provider
 delivery_settings: dialogue_language, asr_language_code, output_fps, intro_outro_policy, bgm_policy, subtitle_enabled, subtitle_policy, video_generation_subtitles, audio_policy, final_deliverables
 asset_forecast: estimated_character_count, estimated_scene_count, estimated_characters, estimated_scenes, estimated_story_props, global_style_moodboards, estimated_keyframes, voice_roles, known_state_versions, reference_budget_risks
@@ -141,8 +150,8 @@ risk_plan, verification_plan, handoff
 - 极短单片可以只守住一个主要亮点；总时长超过 60 秒或多集项目至少规划两个不同维度的亮点支柱。`distribution_policy` 写清建立、变奏、升级和回收，`rejected_cliches` 明确本项目不采用的廉价捷径。
 - `style_contract` 必须是可观察机制，并作为唯一导演总控卡的视觉子系统继承到角色、场景、道具、关键帧和视频；不得另建第二张风格决策卡。至少填写媒介形态、构图骨架、光线方向、色彩关系、材质、镜头质感、字体/版式和明确剥离项。用户明确要求混合风格时，写清主风格、例外元素和可观察边界。`camera_tendency` 只是倾向，逐镜运镜仍由分镜阶段决定。
 - `emotion_design.stages` 动态增减，不能按固定秒数或固定集数填充。`rhythm_design` 必须保存六步推导结果和 `1-5` 强度序列，不得直接套固定的 `0-3 / 3-7 / 7-11.5 / 11.5-14 / 14-15` 时段。`character_curves` 只覆盖承担主要情绪转折的角色；每次变化必须写出事件触发、前后状态、可见证据和关系后果，不能把 BGM、滤镜或抽象情绪词当成角色变化本身。
-- `scale_plan.format_mode` 区分单条短片、多集短剧、微电影和长视频。单条短片通常为 `15-60 秒`；多集短剧常规单集为 `1-3 分钟（60-180 秒）`，极短集机制或用户明确要求时支持 `15-60 秒`；微电影通常为 `5-10 分钟（300-600 秒）`。这些只是规模推导参考。完整模式中由代理拟定时间时写 `duration_semantics: planning_estimate`，结合用户指令、预计事件量、对白与反应容量给出逐集和总时长的预估区间；不得写成必须凑够的准确秒数，也不要求实际剧本、分镜或成片落入区间。
-- `planning_estimate` 使用 `estimated_episode_duration_ranges_s`、`estimated_episode_duration_displays`、`estimated_total_duration_range_s` 和 `estimated_total_duration_display`。逐集区间数组长度等于集数，每项包含正数 `min_s/max_s` 且 `min_s <= max_s`；显示文本必须明确标注“预估/参考”。总区间也是规模参考，不作为下游总时长门。只有用户明确锁定精确执行时长时写 `duration_semantics: user_locked`，并沿用 `episode_durations_s`、`episode_duration_displays`、`total_duration_s`、`total_duration_display`；轻量模式因规划页同时确认唯一视频生成，也沿用这组精确执行字段。单条/单部作品对用户只显示总时长或总预估区间；多集项目显示集数、逐集与总时长参考。`planning_estimate` 不执行跨层相等校验；`user_locked` 和轻量模式必须分别闭合“分镜实际总时长＝锁定执行时长”和“成片实际总时长＝锁定执行时长”，不得以预估规则绕过用户锁定项。
+- `scale_plan.format_mode` 区分单条短片、多集短剧、微电影和长视频。单条短片通常为 `15-60 秒`；多集短剧常规单集为 `1-3 分钟（60-180 秒）`，极短集机制或用户明确要求时支持 `15-60 秒`；微电影通常为 `5-10 分钟（300-600 秒）`。这些范围只用于推导，最终必须结合用户指令、剧本事件量、对白预算和自然切点写入准确秒数。
+- `episode_duration_displays` 与 `episode_durations_s` 逐项对应，`total_duration_display` 与 `total_duration_s` 对应。单条/单部作品对用户只显示总时长；多集项目必须显示集数、每集时长和总时长，两个逐集数组数量等于集数且总和等于 `total_duration_s`。单集时长使用自然时长格式；总时长使用下文规定的“精确秒数/分钟换算”格式。
 - `model_plan.image`、`model_plan.video` 和 `model_plan.video_provider` 必须分开记录。图片与视频模型各自保存模型、用途和 schema 核实状态；provider 保存注册表公开 `id`、用户可见 `display_name`、`selection_source` 和 `user_requested_provider`，不把 provider 写进视频模型字段，也不在规划阶段虚构适配器哈希。用户未指定生图模型时按 `local-runtime.md` 与 `tools/image.json` 的真实配置写 `gpt-image`、`selection_source: default`、`user_requested_model: ""`；用户明确指定其他生图模型时写 `selection_source: user_explicit` 和准确的 `user_requested_model`。视频模型固定登记 `H3`；用户未指定时写 `selection_source: default`、`user_requested_model: ""`，明确指定 H3 时写 `selection_source: user_explicit` 和原始 `user_requested_model`。用户要求其他视频模型时说明当前仅有 H3，停在参数确认表，不能把其他模型登记为已可执行。
 - `model_plan.video_provider` 只能从 `video-provider.md` 的已安装注册表选择。只有一个兼容 provider 时写 `selection_source: default`、`user_requested_provider: ""`；用户明确指定或从多个真实选项中改选时写 `user_explicit` 并保留原始选择文本。多个兼容 provider 的自然名称都进入规划参数项，推荐项作为待确认值，不能列出不存在的后端。用户要求未注册或协议不兼容的 provider 时停在参数确认表并说明真实可选项，不得静默回退。具体视频工具不在规划阶段预设，进入视频执行时再按真实图片、视频和音频输入选择。只有任务明确包含“编辑已有视频”时才登记编辑用途和来源；未使用该能力时不得创建空配置占位。按 `tools/h3.json` 与当前实际 schema 核实 H3 能力；不可用或无法核实时写 `pending` 并停在参数确认表，不得猜测或静默换模型。
 - 禁止代理因质量、时长、额度、重试或工具偏好自主切换视频模型。H3 的每个 SEG 必须为 `4-15` 整数秒；视频阶段 `media_to_video` 对应 `Ref2VA`，最多传 `9` 张图片、`3` 个视频参考和 `3` 个音频参考，总文件数不超过 `12`。单个视频/音频参考为 `2-15` 秒，视频参考合计不超过 `15` 秒，音频参考合计不超过 `15` 秒；有音频时必须同时有图片或视频。其他模式的输入数量以 `tools/h3.json` 为准。
@@ -164,10 +173,10 @@ risk_plan, verification_plan, handoff
 
 ```text
 [single short / micro film / long video opening semantic:
-state that the plan is for 1 work; include the clearly labeled estimated total duration range (or exact user-locked/lightweight execution duration), aspect ratio, content form, genre strategy, visual style, and core conflict or emotional goal.]
+state that the plan is for 1 work; include total duration, aspect ratio, content form, genre strategy, visual style, and core conflict or emotional goal.]
 
 [multi-episode drama opening semantic:
-state episode count, clearly labeled estimated per-episode and total duration ranges for scale/budget reference, aspect ratio, drama type, genre strategy, visual style, and core conflict or emotional goal.]
+state episode count, per-episode duration or duration range, total duration, aspect ratio, drama type, genre strategy, visual style, and core conflict or emotional goal.]
 ```
 
 ### 强制参数列表
@@ -181,8 +190,8 @@ state episode count, clearly labeled estimated per-episode and total duration ra
 - **[video model]:** [one user-facing model name; include segment duration limit and required membership/cost note when applicable]
 - **[video generation provider]:** [selected provider's natural name; when several compatible providers are installed, list the real choices and identify the recommended pending value; do not expose internal IDs, modules, endpoints, or adapters]
 - **[episode count]:** [integer; use 1 for a single work]
-- **[estimated duration per episode / user-locked duration per episode]:** [multi-episode only; full-mode agent planning uses a clearly labeled estimated reference range, never a single target that must be filled]
-- **[estimated total duration / user-locked total duration]:** [full-mode agent planning uses a clearly labeled estimated reference range for scale and budget only; lightweight generation retains its exact confirmed execution duration]
+- **[duration per episode]:** [multi-episode only; use the standard duration display format]
+- **[total duration]:** [use the standard duration display format]
 - **[aspect ratio]:** [9:16 / 16:9 / other valid value]
 - **[sound delivery]:** [intro/outro and BGM; write none when not used]
 - **[subtitles]:** [default disabled; inspect every segment before delivery, erase unexpected subtitles before delivery, and deliver the final video without subtitles; when explicitly requested, keep segment previews subtitle-free and generate, align, and burn subtitles only after the final audio track is locked]
@@ -207,8 +216,7 @@ state episode count, clearly labeled estimated per-episode and total duration ra
 - 会员模型提示必须紧跟模型名，不能只在说明文字、脚注或内部 JSON 中记录；用户明确确认整份参数后才能调用。
 - 参数确认表全文不得出现“轻量模式”“完整模式”“流程模式”、`workflow_mode`、“交付范围”“目标响度”“LUFS”、内部工具名、`schema`、`manifest`、`source_manifest`、`stage_manifests`、`selection_source`、`user_requested_model`、`tool_mode`、`task_id`、检查机制或“当前宿主未暴露”等内部表达。轻量模式新增字段仍使用自然用户语言，不暴露模式名。
 - 单条短片、微电影和长视频不显示“每集时长”，但仍显示“集数：1”和总时长。
-- 完整模式代理规划的每集时长显示为带“预估/参考”的区间，例如“每集预估60-120秒/约1-2分钟，仅作规模参考”；总时长显示为“全剧预估360-720秒/约6-12分钟，仅作规模与预算参考”一类区间，不写单个必须凑够的秒数。实际内容可以自然超出或低于区间，发现规模明显失准时更新参考，而不是删高潮、补空镜或凑字。
-- 用户明确锁定的精确时长和轻量唯一视频执行时长使用自然时长格式：`60` 秒以内写秒数，例如 `48秒`、`60秒`；超过 `60` 秒的整分钟写 `X分钟`；超过 `60` 秒的非整分钟写 `X分Y秒`。总时长超过 `60` 秒时可同时写精确秒数和分钟换算，例如 `120秒/2分钟`、`165秒/2分45秒`。这些精确值属于用户要求或当次生成参数，分镜和成片必须按实际执行层闭合到这些值；只有 `planning_estimate` 允许自然偏离。
+- 单集时长使用自然时长格式：`60` 秒以内写秒数，例如 `48秒`、`60秒`；超过 `60` 秒的整分钟写 `X分钟`；超过 `60` 秒的非整分钟写 `X分Y秒`，例如 `1分15秒`、`2分45秒`。总时长不超过 `60` 秒时只写秒数；超过 `60` 秒时必须同时写精确秒数和分钟换算，固定使用“`120秒/2分钟`”“`165秒/2分45秒`”这类格式，便于同时核对生成预算和观看时长。
 
 ### 分镜预览表 / 剧情节奏预览
 
@@ -231,7 +239,7 @@ state episode count, clearly labeled estimated per-episode and total duration ra
 | 连续时间范围 | 主体、关键行动、冲突变化、结果及与下一段的关系 | 对应声音短摘要或“无” | 只概括主要观察方式和前后衔接 | 本段钩子、反转、回报或收束 |
 
 - 表格最多 `8` 行；剧情节点超过 `8` 个时合并相邻时间段，不得删除故事起点、关键发展、高潮或结尾。
-- 轻量唯一视频或用户明确锁定精确时长的单片预览，时间从 `00:00` 连续覆盖到已确认执行总时长。完整模式代理规划不伪造精确执行总时长：按开端、推进、高潮和结尾的连续剧情顺序覆盖全故事，可使用“约/预估”的时间段或节点区间帮助理解规模，不得为了闭合到某个总秒数增删剧情。
+- 时间必须从 `00:00` 连续覆盖到已确认总时长，不得有空档、重叠、倒序或遗漏结尾。
 - 合并后的每行仍需保持故事因果和动作承接，从头到尾形成完整走向。
 - 该五列表必须是整个剧本或故事的简洁预览版：从开端连续覆盖到最终结局，每行足以概括对应范围的主体、关键动作与结果、声音、主要观察方式/运镜和实际可用或计划使用的素材方向。轻量模式的“台词/声音”必须完整列出全部实际台词、旁白和画外音，没有则明确“无”；完整模式规划预览仍可使用声音短摘要。
 - 两种表都只概括故事走向，不写逐秒动作、镜头编号、详细景别/机位、完整运镜参数、详细光线材质或微表情；完整模式不展开完整台词，轻量模式须保留上一条规定的全部实际人声文本。
@@ -241,7 +249,7 @@ state episode count, clearly labeled estimated per-episode and total duration ra
 
 收尾只固定语义，不固定句子。完整模式视频目标按 `control-contracts.md` 调用项目执行确认；轻量模式直接按 `interaction-ask-video-clarification-ref.md` 调用标准视频生成确认，只有 `generate` 才确认方案并授权当前唯一视频，不再等待第二次确认。其他目标使用普通聊天确认。
 
-首次确认前，用户修改任何一项时仍合并未修改项并重新输出完整开头、参数列表和分镜预览表/剧情节奏预览表，保证存在一个明确的全量基线。规划已有有效全量确认后，局部修改可以只展示变更参数、修改前后、修改日志、受影响集数或阶段及更新后的相关预览行；核心方向、因果链、人物弧、结局、模型、视频生成后端、用户明确锁定的精确时长、画幅、集数、授权或目标交付终点变化，或实际推翻原方案时属于重大修改，仍须全量确认。只调整非锁定的预估区间或其参考展示，不自动构成重大修改，也不使下游失效。完整模式视频目标必须取得 `proceed_project`；轻量模式必须取得 `generate`；其他目标必须收到普通聊天中的明确肯定后才能推进。
+首次确认前，用户修改任何一项时仍合并未修改项并重新输出完整开头、参数列表和分镜预览表/剧情节奏预览表，保证存在一个明确的全量基线。规划已有有效全量确认后，局部修改可以只展示变更参数、修改前后、修改日志、受影响集数或阶段及更新后的相关预览行；核心方向、因果链、人物弧、结局、模型、视频生成后端、时长、画幅、集数、授权或目标交付终点变化，或实际推翻原方案时属于重大修改，仍须全量确认。完整模式视频目标必须取得 `proceed_project`；轻量模式必须取得 `generate`；其他目标必须收到普通聊天中的明确肯定后才能推进。
 
 ## 规划检查
 
@@ -252,30 +260,28 @@ state episode count, clearly labeled estimated per-episode and total duration ra
 - 参数确认表以固定开头语义开始，并按 `language_contract.output_language` 写作；所有内容均已根据用户指令填写；不含待用户填写的空值、占位符或问题清单。
 - `language_contract` 已填写；输出语言、视频语言和字幕语言按当前用户指令主语言或显式语言要求静默写入，并且不出现在参数确认表中。参数确认表必须显示“字幕”项，默认告知不加字幕、片段交付前检查并擦除字幕残留、最终直接拼接无字幕成片；用户明确要求字幕或修改字幕策略时显示对应设置。
 - 完整模式参数列表只显示通用规划字段，其中“视频模型”和“视频生成后端”分别填写；轻量模式首次生成必须在同一列表中追加任务类型、交付格式、视频数量、分辨率、视觉与连续性、参考素材、工具限制与消耗。正式字段显示名按 `language_contract.output_language` 本地化；参数区不得使用 Markdown 表格。
-- 单片显示总预估区间；多集同时显示集数、逐集预估区间和总预估区间，并明确标注“仅作规模与预算参考”。区间结构合法、逐集数量与集数一致即可，不把区间中值、下限或上限转换为下游必须相等的秒数。用户明确锁定的精确时长与轻量执行时长仍按自然时长格式展示。
+- 单片使用总时长；多集同时显示集数、逐集时长和总时长，且时长计算一致；所有用户可见单集时长和总时长均按 `60` 秒以内写秒数、超过 `60` 秒写分钟或分秒的规则展示。
 - 多集项目附带“集数、标题、核心剧情与动作、台词/声音、钩子与亮点”五个列语义的预览；单集、短片、微电影或长视频附带“时间、核心剧情与动作、台词/声音、运镜衔接、钩子与亮点”五个列语义的预览；正式表头按 `language_contract.output_language` 本地化。
-- 预览最多 `8` 行。多集不超过 8 集时每集一行，超过 8 集时合并相邻集并连续覆盖全部集数；单部作品连续覆盖全部剧情节点。只有轻量唯一视频或用户明确锁定精确时长时，才要求预览时间从 0 秒连续覆盖到精确执行总时长；完整模式代理规划使用预估时间段或节点区间，不伪造精确总时长。
+- 预览最多 `8` 行。多集不超过 8 集时每集一行，超过 8 集时合并相邻集并连续覆盖全部集数；单部作品合并相邻时间段并从 0 秒连续覆盖到总时长。
 - 参数确认表未出现内部工具、路由、schema、字段、任务 ID、内部路径、检查结果或宿主能力说明。
 - 核心卖点、戏剧问题、情绪回报和差异化能够互相支持。
 - 类型策略不依赖换皮、巧合或临时设定。
 - 风格合同可以直接被分镜和资产读取，没有抽象形容词冒充机制。
 - 情绪设计存在压力、策略变化、回报和后果，不是固定比例模板。
-- 内容形态、集数、逐集/总预估区间、比例、生图模型、视频模型、视频生成后端、片段上限和视频生成确认轮次互相兼容；provider 来自真实注册表并与模型/协议兼容，预估区间仅用于规模与预算说明，不作为剧本、分镜或成片的硬性指标。H3 每段 `4-15` 整数秒仍是实际生成限制。
+- 内容形态、集数、逐集/总时长、比例、生图模型、视频模型、视频生成后端、片段和视频生成确认轮次互相兼容；provider 来自真实注册表并与模型/协议兼容，H3 每段 `4-15` 整数秒是实际生成限制。
 - 风险项有处理方式，没有靠改名、影射或模糊措辞规避核验。
 - 后续六阶段验收项具体、可执行。
 - 对话中展示的参数与 `drama_plan.json` 一致；所有模式已建立 `project_manifest.json`、`source_manifest.json` 和全部 `episode_manifest_ep_N.json`，完整模式另已建立 `episode_seams.json` 与共享资产登记。
 
 ## 变更与失效
 
-用户修改目标受众、平台、核心卖点、类型、风格、情绪、集数、用户明确锁定的精确时长、画幅、模型、视频生成后端、授权或禁用项，或实际推翻核心方向时：
+用户修改目标受众、平台、核心卖点、类型、风格、情绪、集数、时长、画幅、模型、视频生成后端、授权或禁用项，或实际推翻核心方向时：
 
 1. `drama_plan.json.revision` 递增。
 2. `制作状态.json.phases.planning` 回到 `awaiting_confirmation`。
 3. 使用 `scripts/drama_rollback.py --to-stage planning` 或手动等效事务标记实际受影响的剧本及下游阶段为 `invalidated`。
 4. 重新运行规划检查并交付确认。
 
-仅细调 `planning_estimate` 的非锁定预估区间或参考展示，且没有改变上述核心事项时，不执行规划回退，不自动使剧本、分镜、视频或成片失效，也不要求下游调整实际时长。只更新参考字段、变更日志和必要的增量确认信息，并检查区间结构与集数对应关系；实际产物继续按各自真实内容和媒体事实验收。
-
-规划确因重大修改失效时，递增 `drama_plan.json.revision` 与 `制作状态.json.revision`，将 `制作状态.json.phases.planning` 写回 `awaiting_confirmation`、`current_stage` 写回 `planning`，并把实际受影响下游阶段写为 `invalidated`。可用 `scripts/drama_rollback.py` 自动完成状态回退，再根据实际修改更新规划文件。再次确认只提交唯一状态源。
+规划失效时递增 `drama_plan.json.revision` 与 `制作状态.json.revision`，将 `制作状态.json.phases.planning` 写回 `awaiting_confirmation`、`current_stage` 写回 `planning`，并把实际受影响下游阶段写为 `invalidated`。可用 `scripts/drama_rollback.py` 自动完成状态回退，再根据实际修改更新规划文件。再次确认只提交唯一状态源。
 
 规划确认后，`scriptwriter.md` 必须逐项继承 `handoff.script_must_inherit`、`source_lock`、`creative_proposition`、`opening_strategy`、`type_strategy`、`highlight_strategy`、`style_contract`、`emotion_design`、`scale_plan` 和 `risk_plan`；不得重新选择另一套受众、类型、亮点主轴或风格。

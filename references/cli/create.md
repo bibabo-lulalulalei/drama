@@ -160,3 +160,6 @@ HTML Item 回读成功后，把本次使用的原始 `canvas_workspace_id` 与�
 返回值带 ID，**不能直接抄回去当下一次 `+create` 的输入**。
 
 退出码与错误处理见 [`README.md`](README.md)。
+
+
+Workspace 初始化与 HTML Item 卡片交付属于不同阶段：`+workspace-create` 后使用原始 Workspace ID 调用 `present_files(<workspace_id>)`，交付 Workspace 画布卡片；只有 HTML Item 已创建并完成 `+get` 回读后，才使用 `<workspace_id>?item_id=<item_id>` 单值交付对应 Item 卡片。不得为初始化编造 Item ID，也不得将查询字符串传作 CLI 的 Workspace ID。

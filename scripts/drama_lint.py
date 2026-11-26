@@ -624,7 +624,12 @@ def check_plan_durations(root: Path, plan: Any, issues: list[dict[str, Any]]) ->
         return expected
     semantics = scale.get("duration_semantics")
     expected = {f"ep_{index}": None for index in range(1, count + 1)}
-    locked_execution = is_lightweight_plan(plan) or semantics == "user_locked"
+    locked_execution = (
+        is_lightweight_plan(plan)
+        or semantics is None
+        or semantics == "user_locked"
+    )
+    exact_integer_required = semantics is None or is_lightweight_plan(plan)
     if locked_execution:
         durations = scale.get("episode_durations_s")
         displays = scale.get("episode_duration_displays")
@@ -640,20 +645,27 @@ def check_plan_durations(root: Path, plan: Any, issues: list[dict[str, Any]]) ->
             if not isinstance(seconds, (int, float)) or isinstance(seconds, bool):
                 issues.append(issue("error", "episode_duration_invalid", f"第 {index} 集时长必须是数字。", path))
                 continue
+            if exact_integer_required and (
+                    not math.isfinite(float(seconds)) or not float(seconds).is_integer()):
+                issues.append(issue("error", "episode_duration_integer_invalid", "新创作准确秒数及轻量模式的逐集时长必须为整数秒，才能由整数 SEG 精确闭合；旧 user_locked 项目仅按兼容规则读取。", path))
+                continue
             value = int(round(float(seconds)))
             numeric.append(value)
             expected[f"ep_{index}"] = value
             display = displays[index - 1] if isinstance(displays, list) and index - 1 < len(displays) else None
             check_duration_pair(value, display, path, f"ep_{index}", issues)
         if isinstance(total, (int, float)) and not isinstance(total, bool):
-            if numeric and int(round(float(total))) != sum(numeric):
+            if exact_integer_required and (
+                    not math.isfinite(float(total)) or not float(total).is_integer()):
+                issues.append(issue("error", "total_duration_integer_invalid", "新创作准确秒数及轻量模式的总时长必须为整数秒，才能由整数 SEG 精确闭合；旧 user_locked 项目仅按兼容规则读取。", path))
+            elif numeric and int(round(float(total))) != sum(numeric):
                 issues.append(issue("error", "total_duration_mismatch", "total_duration_s 必须等于各集 episode_durations_s 之和。", path))
             check_duration_pair(total, total_display, path, "total", issues, total_display=True)
         else:
             issues.append(issue("error", "total_duration_invalid", "total_duration_s 必须是数字。", path))
     else:
         if semantics != "planning_estimate":
-            issues.append(issue("error", "duration_semantics_invalid", "完整模式的代理规划时长必须标记 duration_semantics=planning_estimate；只有用户明确锁定精确时长时才使用 user_locked。", path))
+            issues.append(issue("error", "duration_semantics_invalid", "duration_semantics 仅用于兼容旧 planning_estimate 或 user_locked 项目；参考版准确秒数计划应省略该字段。", path))
         ranges = scale.get("estimated_episode_duration_ranges_s")
         displays = scale.get("estimated_episode_duration_displays")
         if not isinstance(ranges, list) or len(ranges) != count:
@@ -1173,24 +1185,55 @@ def report_is_blocked(root: Path, entry: Any) -> bool:
     return isinstance(data, dict) and (data.get("status") == "blocked" or data.get("result") == "blocked")
 
 
-def check_report_entries(root: Path, entries: Any, expected_count: int, path: Path, issues: list[dict[str, Any]]) -> None:
+def check_report_entries(
+    root: Path,
+    entries: Any,
+    expected_media: list[str],
+    path: Path,
+    issues: list[dict[str, Any]],
+    manifest_duration: Any,
+) -> None:
     if not isinstance(entries, list):
         issues.append(issue("error", "basic_qc_reports_invalid", "basic_qc_reports 必须是数组。", path))
         return
-    if len(entries) != expected_count:
-        issues.append(issue("error", "basic_qc_reports_count_invalid", f"basic_qc_reports 数量应为 {expected_count}。", path))
-    for entry in entries:
-        if isinstance(entry, str):
-            if not file_exists(root, entry):
-                issues.append(issue("error", "basic_qc_report_missing", f"基础质检报告不存在：{entry}", path))
-        elif isinstance(entry, dict):
-            report_file = entry.get("file")
-            if report_file and not file_exists(root, report_file):
-                issues.append(issue("error", "basic_qc_report_missing", f"基础质检报告不存在：{report_file}", path))
-        else:
-            issues.append(issue("error", "basic_qc_report_invalid", "basic_qc_reports 每项必须是路径或对象。", path))
+    if len(entries) != len(expected_media):
+        issues.append(issue("error", "basic_qc_reports_count_invalid", f"basic_qc_reports 数量应为 {len(expected_media)}，并分别对应当前无字幕母版和适用的字幕版。", path))
+    for index, entry in enumerate(entries):
+        report_file = entry if isinstance(entry, str) else entry.get("file") if isinstance(entry, dict) else None
+        if not isinstance(report_file, str) or not report_file.strip():
+            issues.append(issue("error", "basic_qc_report_invalid", "basic_qc_reports 每项必须是报告路径或包含 file 的对象。", path))
+            continue
+        if not file_inside(root, report_file, path.parent):
+            issues.append(issue("error", "basic_qc_report_missing", f"基础质检报告必须位于当前分集成片目录且真实存在：{report_file}", path))
+            continue
         if report_is_blocked(root, entry):
             issues.append(issue("error", "basic_qc_report_blocked", "基础媒体可用性检查结果为 blocked，不得交付。", path))
+        report_path = relative_file(root, report_file)
+        report = load_json(report_path, issues, required=True) if report_path is not None else None
+        if not isinstance(report, dict):
+            continue
+        expected_file = expected_media[index] if index < len(expected_media) else None
+        if report.get("media_file") != expected_file:
+            issues.append(issue("error", "basic_qc_report_media_mismatch", f"{report_file} 的 media_file 必须对应当前验收媒体：{expected_file}", report_path))
+        media_path = relative_file(root, report.get("media_file"))
+        declared_hash = report.get("media_sha256")
+        if not isinstance(declared_hash, str) or re.fullmatch(r"[0-9a-f]{64}", declared_hash) is None:
+            issues.append(issue("error", "basic_qc_report_media_hash_invalid", "基础质检报告必须登记 64 位小写 media_sha256。", report_path))
+        elif media_path is not None and media_path.is_file() and declared_hash != file_sha256(media_path):
+            issues.append(issue("error", "basic_qc_report_media_hash_mismatch", "基础质检报告的 media_sha256 与当前媒体实际字节不一致。", report_path))
+        expected = report.get("expected")
+        observed = report.get("observed")
+        expected_value = expected.get("duration_s") if isinstance(expected, dict) else None
+        observed_value = observed.get("duration_s") if isinstance(observed, dict) else None
+        expected_valid = isinstance(expected_value, (int, float)) and not isinstance(expected_value, bool) and math.isfinite(float(expected_value)) and float(expected_value) > 0
+        observed_valid = isinstance(observed_value, (int, float)) and not isinstance(observed_value, bool) and math.isfinite(float(observed_value)) and float(observed_value) > 0
+        if not expected_valid or not observed_valid:
+            issues.append(issue("error", "basic_qc_report_duration_invalid", "基础质检报告 expected.duration_s 与 observed.duration_s 必须是有限正数。", report_path))
+            continue
+        if not isinstance(manifest_duration, (int, float)) or isinstance(manifest_duration, bool) or not math.isfinite(float(manifest_duration)) or abs(float(expected_value) - float(manifest_duration)) > 1e-6:
+            issues.append(issue("error", "basic_qc_report_expected_duration_mismatch", "基础质检报告 expected.duration_s 必须精确取 delivery_manifest.duration_s，不能从待验媒体反推。", report_path))
+        if abs(float(observed_value) - float(expected_value)) > 0.5 + 1e-9:
+            issues.append(issue("error", "basic_qc_report_duration_mismatch", "基础质检报告的实测成片时长与期望时长相差超过 0.5 秒。", report_path))
 
 
 def check_continuity_for_delivery(root: Path, episode_id: str, accepted_order: list[str], issues: list[dict[str, Any]]) -> None:
@@ -1296,13 +1339,13 @@ def check_delivery(
         if data.get("status") not in {"deliverable", "candidate"}:
             issues.append(issue("error", "delivery_status_not_deliverable", "delivery_manifest.status 必须为 deliverable 或 candidate；blocked 不得交付。", path))
         duration = data.get("duration_s")
-        if isinstance(duration, (int, float)) and not isinstance(duration, bool):
+        if isinstance(duration, (int, float)) and not isinstance(duration, bool) and math.isfinite(float(duration)) and float(duration) > 0:
             check_duration_pair(duration, data.get("duration_display"), path, "delivery", issues)
             expected_duration = expected_durations.get(episode_id)
-            if expected_duration is not None and int(round(float(duration))) != expected_duration:
-                issues.append(issue("error", "delivery_duration_mismatch", "user_locked 或轻量精确时长要求下，成片实际总时长必须等于锁定的本集执行时长。", path))
+            if expected_duration is not None and abs(float(duration) - expected_duration) > 0.5 + 1e-9:
+                issues.append(issue("error", "delivery_duration_mismatch", "真实编码成片与已确认本集执行时长的差值不得超过 0.5 秒；计划和 SEG 字段仍须精确闭合。", path))
         else:
-            issues.append(issue("error", "delivery_duration_invalid", "delivery_manifest.duration_s 必须是数字。", path))
+            issues.append(issue("error", "delivery_duration_invalid", "delivery_manifest.duration_s 必须是有限正数。", path))
         if not file_inside(root, data.get("clean_master"), episode_root):
             issues.append(issue("error", "clean_master_missing", "clean_master 必须指向当前分集目录下真实媒体文件。", path))
         if subtitle_enabled is True and not file_inside(root, data.get("subtitle_master"), episode_root):
@@ -1319,11 +1362,10 @@ def check_delivery(
         elif subtitle_enabled is True and outputs != [data.get("subtitle_master")]:
             issues.append(issue("error", "outputs_mismatch", "outputs 必须与用户可见正式交付文件精确一致：字幕开启时只交付 [subtitle_master]。", path))
         reports = data.get("basic_qc_reports")
-        if reports not in (None, []):
-            if isinstance(reports, list):
-                check_report_entries(root, reports, len(reports), path, issues)
-            else:
-                issues.append(issue("error", "basic_qc_reports_invalid", "basic_qc_reports 必须是数组。", path))
+        expected_qc_media = [data.get("clean_master")]
+        if subtitle_enabled is True:
+            expected_qc_media.append(data.get("subtitle_master"))
+        check_report_entries(root, reports, expected_qc_media, path, issues, duration)
         if subtitle_enabled is True:
             asr_alignment_report = data.get("asr_alignment_report")
             if str(asr_alignment_report or "").strip() and (not file_inside(root, asr_alignment_report, episode_root) or report_is_blocked(root, asr_alignment_report)):
@@ -1530,6 +1572,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("skill_root", nargs="?", default=".")
     parser.add_argument("--project-root")
     parser.add_argument("--stage", choices=("skill", *STAGES, "all"), default="skill")
+    parser.add_argument("--fix", action="store_true", help="旧调用兼容；不修改文件")
+    parser.add_argument("--changed-file", action="append", help="旧调用兼容；仍执行所选阶段完整检查")
     return parser.parse_args(argv)
 
 

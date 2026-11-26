@@ -525,6 +525,27 @@ class SegmentPromptPipeline:
                 context.report("accepted_segment_prompt_missing", f"{segment_id} 已 accepted，但 compiled_prompt_file 不存在。")
 
 
+def check_video_duration_declaration(
+    data: dict[str, Any],
+    segments: list[Any],
+    path: Path,
+    issues: list[dict[str, Any]],
+) -> None:
+    declared_duration = data.get("duration_s")
+    valid_segment_durations = [
+        float(segment["duration_s"])
+        for segment in segments
+        if isinstance(segment, dict)
+        and isinstance(segment.get("duration_s"), (int, float))
+        and not isinstance(segment.get("duration_s"), bool)
+        and math.isfinite(float(segment["duration_s"]))
+    ]
+    if not isinstance(declared_duration, (int, float)) or isinstance(declared_duration, bool) or not math.isfinite(float(declared_duration)) or float(declared_duration) <= 0:
+        issues.append(issue("error", "video_duration_invalid", "video_manifest.duration_s 必须是有限正数。", path))
+    elif valid_segment_durations and abs(float(declared_duration) - sum(valid_segment_durations)) > 1e-6:
+        issues.append(issue("error", "video_duration_mismatch", "video_manifest.duration_s 必须用原始数值精确等于 segments.duration_s 之和，不能四舍五入闭合。", path))
+
+
 class VideoChecker:
     def __init__(
         self,
@@ -586,10 +607,7 @@ class VideoChecker:
                 self.issues.append(issue(level, "video_segment_missing", f"video_manifest 尚未覆盖 storyboard segment：{missing_segments}；视频阶段允许逐段建立真实执行记录，进入成片前必须补齐。", path))
             if extra_segments:
                 self.issues.append(issue("error", "video_segment_unplanned", f"video_manifest 含 storyboard 中不存在的 segment：{extra_segments}", path))
-        if isinstance(data.get("duration_s"), (int, float)):
-            calculated = int(round(sum(float(s.get("duration_s")) for s in segments if isinstance(s, dict) and isinstance(s.get("duration_s"), (int, float)))))
-            if calculated and int(round(float(data["duration_s"]))) != calculated:
-                self.issues.append(issue("error", "video_duration_mismatch", "video_manifest.duration_s 必须等于 segments.duration_s 之和。", path))
+        check_video_duration_declaration(data, segments, path, self.issues)
         self.seen_voice_anchors = {}
         for segment in segments:
             if not isinstance(segment, dict):
@@ -609,9 +627,9 @@ class VideoChecker:
         if isinstance(segment_id, str) and index["segments"] and segment_id not in index["segments"]:
             self.issues.append(issue("error", "video_unknown_segment", f"视频引用了分镜中不存在的 segment_id：{segment_id}", path))
         storyboard_duration = index["segment_durations"].get(segment_id)
-        if storyboard_duration is not None and isinstance(segment.get("duration_s"), (int, float)):
-            if int(round(float(segment["duration_s"]))) != int(round(float(storyboard_duration))):
-                self.issues.append(issue("error", "video_segment_duration_mismatch", f"{segment_id} 时长必须与分镜片段时长一致。", path))
+        if storyboard_duration is not None and isinstance(segment.get("duration_s"), (int, float)) and not isinstance(segment.get("duration_s"), bool) and math.isfinite(float(segment["duration_s"])) and math.isfinite(float(storyboard_duration)):
+            if abs(float(segment["duration_s"]) - float(storyboard_duration)) > 1e-6:
+                self.issues.append(issue("error", "video_segment_duration_mismatch", f"{segment_id} 时长必须与分镜片段时长按原始数值精确一致。", path))
         image_orders, image_roles = ordered_inputs(self.root, video_reference_inputs(segment, path, self.issues), REFERENCE_ROLES, "reference", path, self.issues)
         video_orders, video_roles = ordered_inputs(self.root, segment.get("video_inputs"), VIDEO_INPUT_ROLES, "video", path, self.issues)
         audio_orders, audio_roles = ordered_inputs(self.root, segment.get("audio_inputs"), AUDIO_INPUT_ROLES, "audio", path, self.issues)

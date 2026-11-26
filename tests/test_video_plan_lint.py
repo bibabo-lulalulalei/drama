@@ -98,6 +98,32 @@ class VideoPlanLintTests(unittest.TestCase):
         issues, _, _ = self.validate()
         self.assertIn("reference_input_file_missing", {item["code"] for item in issues})
 
+    def test_video_total_cannot_round_fractional_manifest_into_integer_segments(self):
+        issues = []
+        drama_lint_video.check_video_duration_declaration(
+            {"duration_s": 9.6},
+            [{"duration_s": 4}, {"duration_s": 6}],
+            self.path,
+            issues,
+        )
+        self.assertIn("video_duration_mismatch", {item["code"] for item in issues})
+
+    def test_video_total_uses_exact_raw_sum_and_rejects_non_finite_values(self):
+        issues = []
+        drama_lint_video.check_video_duration_declaration(
+            {"duration_s": 10},
+            [{"duration_s": 4}, {"duration_s": 6}],
+            self.path,
+            issues,
+        )
+        self.assertEqual([], issues)
+        for value in (float("nan"), float("inf"), True, -1):
+            with self.subTest(value=value):
+                issues = []
+                drama_lint_video.check_video_duration_declaration(
+                    {"duration_s": value}, [{"duration_s": 4}], self.path, issues)
+                self.assertIn("video_duration_invalid", {item["code"] for item in issues})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -32,6 +32,18 @@ _SKIP_RESULT_KEYS = {"input", "inputs", "input_values", "request", "payload"}
 
 PROVIDER_ID = "autodl"
 ADAPTER_VERSION = "1.0"
+EXECUTION_DEPENDENCY_FILES = (
+    "autodl_instance.py",
+    "media.py",
+    "video.py",
+    "video_run.py",
+    "workflow_series.py",
+    "lib/env.py",
+    "lib/h3_domain.py",
+    "lib/json_state.py",
+    "lib/media_facts.py",
+    "lib/video_providers.py",
+)
 
 
 class WorkflowBackendError(common.BackendError):
@@ -416,6 +428,15 @@ def _recover_persistent_video(state: dict) -> tuple[str | None, dict]:
                 "output_listing_identity": "insufficient_standalone",
                 "automatic_regeneration": False}
     candidates: dict[str, dict] = {}
+    saved_url = state.get("result_url")
+    if saved_url:
+        try:
+            url = _persistent_output_url(saved_url, base)
+        except WorkflowBackendError as exc:
+            evidence["saved_result_url_error"] = _error_fact(exc)
+        else:
+            evidence.update(status="recovered", source="saved_result_url")
+            return url, evidence
     try:
         body = _http("GET", f"{base}/api/concurrent/assets", _token(), allow_list=True)
         assets = _response_items(body, "assets")
@@ -443,16 +464,6 @@ def _recover_persistent_video(state: dict) -> tuple[str | None, dict]:
                         asset={key: item.get(key) for key in
                                ("localFile", "originalFile", "promptId", "workflowId", "url")})
         return url, evidence
-
-    saved_url = state.get("result_url")
-    if saved_url:
-        try:
-            url = _persistent_output_url(saved_url, base)
-        except WorkflowBackendError as exc:
-            evidence["saved_result_url_error"] = _error_fact(exc)
-        else:
-            evidence.update(status="recovered", source="saved_result_url")
-            return url, evidence
 
     try:
         body = _http("GET", f"{base}/api/images", _token(), allow_list=True)
@@ -616,19 +627,54 @@ def prompt_markers(prompt: str, records: list[dict]) -> dict:
     return common._marker_summary(prompt, records)
 
 
-def verify_task_inputs(task_file: str, *, prompt_sha256: str,
-                       expected_inputs: list[str]) -> None:
+def _segment_args(*, config: str, entry: dict, images: list[str], audio: list[str],
+                  prompt_file: str, task_file: str, output: str) -> argparse.Namespace:
+    return argparse.Namespace(
+        config=config, mode=entry.get("h3_mode", "Ref2VA"),
+        seconds=entry["duration_s"], aspect_ratio=entry.get("aspect_ratio"),
+        megapixels=entry.get("megapixels"), workflow=entry.get("workflow_id"),
+        base_url=entry.get("base_url"), image=images, video=None, audio=audio,
+        prompt_file=prompt_file, prompt=None, task_file=task_file, out=output,
+        dry_run=False,
+    )
+
+
+def verify_task_inputs(task_file: str, *, config: str, entry: dict,
+                       images: list[str], audio: list[str], prompt_file: str,
+                       output: str) -> None:
+    args = _segment_args(
+        config=config, entry=entry, images=images, audio=audio,
+        prompt_file=prompt_file, task_file=task_file, output=output)
+    prepared = prepare(args)
     state = _load_state(Path(task_file))
-    slots = state.get("slots", [])
-    if state.get("prompt_sha256") != prompt_sha256 or len(slots) != len(expected_inputs):
+    expected_fields = {
+        "workflow_id": prepared["workflow_id"],
+        "base_url": prepared["base_url"],
+        "view_path": prepared["view_path"],
+        "mode": args.mode,
+        "seconds": prepared["seconds"],
+        "aspect_ratio": prepared["aspect_ratio"],
+        "megapixels": prepared["megapixels"],
+        "prompt_sha256": prepared["prompt_sha256"],
+        "params_sha256": prepared["params_sha256"],
+    }
+    mismatched = [field for field, value in expected_fields.items() if state.get(field) != value]
+    saved_output = state.get("out")
+    if not isinstance(saved_output, str) or Path(saved_output).resolve() != Path(output).resolve():
+        mismatched.append("out")
+    if mismatched:
         raise WorkflowBackendError(
-            f"已有任务与当前 Prompt/输入数量不一致，拒绝盲目续跑: {task_file}")
+            f"已有任务与当前完整请求不一致（{', '.join(mismatched)}），拒绝盲目续跑: {task_file}")
+    slots = state.get("slots", [])
+    expected_inputs = images + audio
+    if not isinstance(slots, list) or len(slots) != len(expected_inputs):
+        raise WorkflowBackendError(f"已有任务与当前输入数量不一致，拒绝盲目续跑: {task_file}")
     for slot, filename in zip(slots, expected_inputs):
         path = Path(filename).resolve()
-        if Path(slot.get("ref", "")).resolve() != path \
+        if not isinstance(slot, dict) or Path(slot.get("ref", "")).resolve() != path \
                 or slot.get("sha256") != sha256_file(path):
             raise WorkflowBackendError(
-                f"已有任务的 {slot.get('slot')} 与当前真实输入不一致: {task_file}")
+                f"已有任务的 {slot.get('slot') if isinstance(slot, dict) else '未知槽位'} 与当前真实输入不一致: {task_file}")
 
 
 def _provider_result(result: dict) -> dict:
@@ -641,13 +687,9 @@ def _provider_result(result: dict) -> dict:
 def submit_segment(*, config: str, entry: dict, images: list[str], audio: list[str],
                    prompt_file: str, task_file: str, output: str) -> dict:
 
-    args = argparse.Namespace(
-        config=config, mode=entry.get("h3_mode", "Ref2VA"),
-        seconds=entry["duration_s"], aspect_ratio=None, megapixels=None,
-        workflow=None, base_url=None, image=images, video=None, audio=audio,
-        prompt_file=prompt_file, prompt=None, task_file=task_file, out=output,
-        dry_run=False,
-    )
+    args = _segment_args(
+        config=config, entry=entry, images=images, audio=audio,
+        prompt_file=prompt_file, task_file=task_file, output=output)
     return _provider_result(cmd_submit(args))
 
 

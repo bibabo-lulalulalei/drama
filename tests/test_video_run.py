@@ -76,10 +76,32 @@ class VideoRunTests(unittest.TestCase):
         self.assertEqual(argv[argv.index("--timeout") + 1], "900")
         self.assertEqual(argv[argv.index("--interval") + 1], "10")
 
+    def test_explicit_env_file_is_forwarded_to_both_managed_layers(self):
+        argv, _, _ = video_run.build_command(
+            self.root, "ep_1", True, "config/custom.env")
+        self.assertEqual(argv[3:5], ["--env-file", "config/custom.env"])
+        self.assertEqual(argv[5], "run-managed")
+        series = argv.index(str(video_run.SKILL_ROOT / "tools/workflow_series.py"))
+        self.assertEqual(argv[series + 1:series + 5], [
+            "--env-file", "config/custom.env", "run", "--queue",
+        ])
+
     def test_default_is_offline_preflight_without_process_or_log(self):
-        with patch.object(video_run.workflow_series, "cmd_preflight", return_value={"ok": True}), \
+        binding = {
+            "ok": True,
+            "run_plan_file": "episodes/ep_1/04_视频片段/串行执行.json",
+            "run_plan_sha256": "a" * 64,
+            "video_provider": "autodl",
+            "video_provider_adapter_version": "1",
+            "video_provider_adapter_sha256": "b" * 64,
+            "cloud_config_sha256": "c" * 64,
+        }
+        with patch.object(video_run.workflow_series, "cmd_preflight", return_value=binding) as preflight, \
                 patch.object(subprocess, "run") as process:
             result = video_run.run(self.root, "ep_1", False)
+        self.assertFalse(preflight.call_args.args[0].require_confirmed)
+        for key, value in binding.items():
+            self.assertEqual(value, result[key])
         self.assertTrue(result["dry_run"])
         self.assertFalse(result["process_started"])
         self.assertFalse((self.folder / "串行运行.log").exists())
@@ -88,9 +110,10 @@ class VideoRunTests(unittest.TestCase):
     def test_execute_runs_one_fixed_process_and_appends_fixed_log(self):
         log = self.folder / "串行运行.log"
         log.write_bytes(b"original\n")
-        with patch.object(video_run.workflow_series, "cmd_preflight", return_value={"ok": True}), \
+        with patch.object(video_run.workflow_series, "cmd_preflight", return_value={"ok": True}) as preflight, \
                 patch.object(subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as process:
             result = video_run.run(self.root, "ep_1", True)
+        self.assertTrue(preflight.call_args.args[0].require_confirmed)
         process.assert_called_once()
         self.assertEqual(process.call_args.args[0][3], "run-managed")
         self.assertEqual(result["process_exit_code"], 0)

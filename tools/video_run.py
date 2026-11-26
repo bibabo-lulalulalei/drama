@@ -26,7 +26,8 @@ def paths(project_root: Path, episode: str) -> tuple[Path, Path]:
     return folder / "串行执行.json", folder / "串行运行.log"
 
 
-def build_command(project_root: Path, episode: str, execute: bool) -> tuple[list[str], Path, dict]:
+def build_command(project_root: Path, episode: str, execute: bool,
+                  env_file: str | None = None) -> tuple[list[str], Path, dict]:
     root = project_root.resolve()
     run_file, log_file = paths(root, episode)
     data = json.loads(run_file.read_text(encoding="utf-8-sig"))
@@ -77,10 +78,10 @@ def build_command(project_root: Path, episode: str, execute: bool) -> tuple[list
     timeout = str(poll.get("timeout_s", 900))
     interval = str(poll.get("interval_s", 10))
 
-    manager = [
-        sys.executable, "-I", str(SKILL_ROOT / "tools/autodl_instance.py"),
-        "run-managed", "--instance-uuid", instance,
-    ]
+    manager = [sys.executable, "-I", str(SKILL_ROOT / "tools/autodl_instance.py")]
+    if env_file:
+        manager.extend(["--env-file", env_file])
+    manager.extend(["run-managed", "--instance-uuid", instance])
     if execute:
         manager.extend(["--execute", "--confirm-power", instance])
     manager.extend([
@@ -91,21 +92,32 @@ def build_command(project_root: Path, episode: str, execute: bool) -> tuple[list
         "--health-interval", "10",
         "--health-timeout", "300",
     ])
-    child = [
-        "--", sys.executable, "-I", str(SKILL_ROOT / "tools/workflow_series.py"),
+    child = ["--", sys.executable, "-I", str(SKILL_ROOT / "tools/workflow_series.py")]
+    if env_file:
+        child.extend(["--env-file", env_file])
+    child.extend([
         "run", "--queue", str(run_file), "--project-root", str(root),
         *authorized, *confirmations, "--timeout", timeout, "--interval", interval,
-    ]
+    ])
     return manager + child, log_file, data
 
 
-def run(project_root: Path, episode: str, execute: bool) -> dict:
+def run(project_root: Path, episode: str, execute: bool,
+        env_file: str | None = None) -> dict:
     root = project_root.resolve()
     run_file, _ = paths(root, episode)
     preflight = workflow_series.cmd_preflight(argparse.Namespace(
-        queue=str(run_file), project_root=str(root), require_ready=True))
-    argv, log_file, data = build_command(root, episode, execute)
+        queue=str(run_file), project_root=str(root), require_ready=True,
+        require_confirmed=execute))
+    argv, log_file, data = build_command(root, episode, execute, env_file)
     if not execute:
+        confirmation_binding = {
+            key: preflight.get(key) for key in (
+                "run_plan_file", "run_plan_sha256", "video_provider",
+                "video_provider_adapter_version", "video_provider_adapter_sha256",
+                "cloud_config_sha256",
+            )
+        }
         return {
             "ok": True,
             "dry_run": True,
@@ -114,6 +126,7 @@ def run(project_root: Path, episode: str, execute: bool) -> dict:
             "run_file": str(run_file),
             "segment_count": len(data["segments"]),
             "preflight": preflight["ok"],
+            **confirmation_binding,
         }
     with log_file.open("ab") as stream:
         completed = subprocess.run(
@@ -135,8 +148,10 @@ def main() -> None:
     parser.add_argument("--project-root", required=True)
     parser.add_argument("--episode", required=True)
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--env-file")
     args = parser.parse_args()
-    result = run(Path(args.project_root), args.episode, args.execute)
+    env.set_env_file(args.env_file)
+    result = run(Path(args.project_root), args.episode, args.execute, args.env_file)
     env.emit(result)
     if result.get("process_exit_code"):
         raise SystemExit(result["process_exit_code"])

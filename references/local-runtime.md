@@ -4,7 +4,7 @@
 
 H3 的模式、参考使用方式和成稿结构由 `tools/h3.json`、`video.md` 与 h3-prompt-writing Skill 决定；这些模型规则与执行 provider 分开。
 
-所有 CLI 统一约定：stdout 单行 JSON（`{"ok": true, ...}`），退出码 `0` 成功 / `1` 运行或业务失败 / `2` 参数错误。凭证只在执行时从环境变量或批准的 `.env` 读取，不写入项目、manifest、快照或 Prompt，不回显真实值。
+CLI 正常结果默认从 stdout 输出单行 JSON（`{"ok": true, ...}`），错误 JSON 可写 stderr；`search --pretty` 是明确的人类可读多行输出，`media.py probe --json` 可返回 ffprobe 原始 JSON，自动化不得把这两个例外当作统一信封。退出码为 `0` 成功 / `1` 运行或业务失败 / `2` 参数错误；调用方同时采集 stdout、stderr 和退出码。凭证只在执行时从环境变量或批准的 `.env` 读取，不写入项目、manifest、快照或 Prompt，不回显真实值。
 
 ## 工具映射总表
 
@@ -65,7 +65,7 @@ H3 的模式、参考使用方式和成稿结构由 `tools/h3.json`、`video.md`
 - 优先使用宿主实际提供的确认工具，例如 Claude Code 的原生确认工具或 Codex 的 `request_user_input_async`；参数结构服从当前工具真实 schema，保留确认 Ref 的单选语义和授权范围，不传入另一平台的字段。
 - 宿主没有专用确认工具时，主 Agent 在完整参数后展示“按要求生成（视频生成为高消耗生成）／暂不生成”两项并等待用户明确回复；项目执行与拼接同样保留各自的选项及范围。沉默、模糊回复、预选项和历史确认均无效，参数变化后重新确认。
 - 确认记录继续保存真实用户原文、当前 revision、参数范围和带时区时间。`confirmation_source` 表示工作流依据：完整模式视频批次为 `batch_preview`，轻量首次生成为 `planning_preview`；`confirmation_transport` 表示实际通道，为 `host_tool|user_message`。存在真实工具调用时记录真实调用 ID；聊天确认时生成唯一的本地确认记录 ID，以 `local:` 前缀写入 `interaction_ask_call_id`，并写 `confirmation_transport: user_message`。该 ID 只标识已收到的本地确认，不能声称调用了不存在的工具；规划、视频和拼接中引用同次确认时使用同一记录 ID。
-- 视频固定 JSON、正常段间与进程退出边界只读 `delegation.md`。本地有 subagent 时由其启动并等待固定 `video_run.py` 进程；没有时由主 Agent 启动并等待同一进程，内层始终是 `autodl_instance.py run-managed` 包住的 `workflow_series.py run`。计费电源只按选中 provider 文档另行授权。TTS 同样由一个受管进程包住单角色或整个 roles-file 批次。
+- 视频固定 JSON、正常段间与进程退出边界只读 `delegation.md`。本地有 subagent 时由其启动并等待固定 `video_run.py` 进程；没有时由主 Agent 启动并等待同一进程，当前已接入的 AutoDL 路径内层始终是 `autodl_instance.py run-managed` 包住的 `workflow_series.py run`；其他 provider 在固定入口实现真实生命周期路由前不得执行，也不能套用 AutoDL 状态。计费电源只按选中 provider 文档另行授权。TTS 同样由一个受管进程包住单角色或整个 roles-file 批次。
 - `tools/media.py` 为同步命令，以退出码、实际输出文件及探测结果确认完成，不伪造远端异步 task ID。本地没有 ASR：字幕从锁定台词稿建立 SRT，再按实际音轨试听对齐，不能把估计时间写成已通过 ASR 核验；工具未实现的混音等操作应如实说明能力缺口。
 - 本地字幕 `burn --size` 使用像素字号，ASS 的 PlayRes 与实际视频尺寸一致；`--pos lower_third` 把文字中心定位在画面高度 70%，`bottom` 对应底部居中。不得用固定虚拟画布缩放字号或把 70% 解释为字幕基线。
 

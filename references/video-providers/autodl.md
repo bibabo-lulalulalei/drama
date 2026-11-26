@@ -82,7 +82,7 @@ python tools/autodl_instance.py run-managed --instance-uuid pro-xxx \
   -- python tools/tts.py --roles-file roles.json
 ```
 
-`--` 后是无 shell 的子进程命令，监督进程不自行新增任务、重写 Prompt 或扩大范围。视频正常 SEG 间不重复开关机，TTS 不按角色重复开关机。`--env-file` 是全局参数，放在子命令之前。
+`--` 后是无 shell 的子进程命令，监督进程不自行新增任务、重写 Prompt 或扩大范围。同一受管进程内不按 SEG 或 TTS 角色重复开关机；下一新 SEG 的新进程与电源授权按通用 provider 合同重新闭合。`--env-file` 是全局参数，放在子命令之前。
 
 ### 电源协议与状态对账
 
@@ -178,7 +178,7 @@ python tools/workflow_video.py poll --task-file seg.task.json --out seg.mp4 \
 
 ## 离线验证
 
-`tests/test_workflow_recovery.py` 使用路由假后端，所有非 GET 请求都会使测试失败。覆盖 provider 选择、版本/哈希锁定、串行器解耦、result/history 回退、pending 超过 120 秒继续到成功、10 秒间隔、900 秒上限、精确资产恢复、模糊目录拒绝、保存 URL 恢复和下载校验。`tests/test_autodl_health.py` 覆盖 HTTP 200 但 Comfy 尚未 running 时继续等待、JSON 健康条件、固定检查间隔、独立健康时限与敏感正文抑制；`tests/test_video_run.py` 覆盖固定入口的结果轮询 900 秒/10 秒、健康门 10 秒/300 秒及原电源超时。运行：
+`tests/test_workflow_recovery.py` 使用路由假后端，所有非 GET 请求都会使测试失败。覆盖 provider 选择、执行依赖哈希锁定、历史段原序 `reuse` 的多轮 queue 续跑、历史路径/授权篡改拒绝、串行器解耦、result/history 回退、pending 超过 120 秒继续到成功、10 秒间隔、900 秒上限、保存 URL 优先恢复、精确资产恢复、模糊目录拒绝和下载校验。`tests/test_autodl_health.py` 覆盖 HTTP 200 但 Comfy 尚未 running 时继续等待、JSON 健康条件、固定检查间隔、独立健康时限与敏感正文抑制；`tests/test_video_run.py` 覆盖固定入口的结果轮询 900 秒/10 秒、健康门 10 秒/300 秒及原电源超时。运行：
 
 ```bash
 python -I tests/test_workflow_recovery.py -v

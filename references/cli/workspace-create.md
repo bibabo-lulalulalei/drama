@@ -42,7 +42,7 @@ Content-Type: application/json
 </canvas_workspace>
 ```
 
-只回 ID 与版本，不回画布内容——新画布本来就是空的。**记下 `canvas_workspace_id`**，后续所有命令都要用它。
+只回 ID 与版本，不回画布内容——新画布本来就是空的。**记下 `canvas_workspace_id`**，后续需要目标 Workspace 的命令都要用它；`+get-workspace` 和 `+workspace-create` 这两个初始化命令除外。
 
 ## Workspace 画布卡片交付门禁
 

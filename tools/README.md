@@ -1,6 +1,6 @@
 # drama 本地工具说明
 
-所有 CLI 的 stdout 均为单行 JSON，退出码为 `0` 成功 / `1` 运行失败 / `2` 参数错误。凭证只从环境变量或 `.env` 读取，不硬编码、不回显。通用执行合同见 `references/local-runtime.md`；视频后端选择与适配器见 `references/video-provider.md`，平台专属命令只见对应 provider 文档。
+CLI 输出通道、人类可读/原始探测例外和退出码统一见 `references/local-runtime.md`；调用方同时采集 stdout、stderr 和退出码。凭证只从环境变量或 `.env` 读取，不硬编码、不回显。视频后端选择与适配器见 `references/video-provider.md`，平台专属命令只见对应 provider 文档。
 
 ## .env 查找顺序
 
@@ -43,7 +43,7 @@ python -I tools/video_run.py --project-root <项目目录> --episode ep_N
 python -I tools/video_run.py --project-root <项目目录> --episode ep_N --execute
 ```
 
-第一条只离线预检；第二条把同一 JSON 的电源、轮询、逐段操作和确认 ID 直接填入：
+第一条只离线预检，并返回当前 queue 相对路径/SHA-256 及 provider、适配器版本/SHA-256、cloud config SHA-256，供主 Agent 原样写入当前 SEG 确认；此时不要求确认已经存在。第二条启用执行前确认门，核验当前 queue 实际字节和最新逐 SEG 确认后，把同一 JSON 的电源、轮询、逐段操作和确认 ID 直接填入：
 
 ```text
 autodl_instance.py run-managed -> workflow_series.py run
@@ -72,5 +72,5 @@ python tools/upload.py a.png --prefix shots/
 - `workflow_series.py` 只通过 `lib/video_providers.py` 选择适配器。provider 身份和协议必须明确；适配器/cloud 哈希由工具计算并绑定 run-state，不要求重复手填。
 - provider 适配器负责提交、恢复、下载和客观媒体校验；串行器负责授权范围、真实尾帧、来源哈希、执行锁和 checkpoint。任务恢复不新增生成 POST，内容问题不自动重生。
 - 实际提交只读 h3-prompt-writing 产出的 H3 英文成稿，中文导演底稿不直接提交。普通身份、场景、高光与群众参考使用 Ref2VA。
-- 视频与 TTS 的云端执行按各自后端合同包住完整 queue、单角色或整个 roles-file；不按 SEG 或角色重复开关机。
+- 视频与 TTS 的云端执行按各自后端合同包住当次 queue、单角色或整个 roles-file；同一受管进程内不按条目重复开关机。下一新 SEG 的新进程与电源授权按 provider 合同重新闭合。
 - `media.py` 是 mediakit 的本地等价实现，操作日志工具名仍登记 `mediakit`。TTS 只产音色样片，视频人声默认由视频模型原生生成。

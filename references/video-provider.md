@@ -43,7 +43,7 @@ cloud config 必须显式登记受适配器支持的 `protocol`，也可以登�
 - `video_provider_adapter_sha256`
 - `cloud_config_sha256`
 
-run-state 必须完整保存这些工具计算出的绑定，并与当次固定 JSON、配置及安装代码完全一致；缺字段或值不同都拒绝续跑，不自动补写。确认记录使用同次 preflight 的返回值，不在固定 JSON 中手工复制这些哈希。
+run-state 必须完整保存这些工具计算出的绑定，并与当次固定 JSON、配置及安装代码完全一致；缺字段或值不同都拒绝续跑，不自动补写。`video_provider_adapter_sha256` 是对适配器及其 `EXECUTION_DEPENDENCY_FILES` 声明的固定执行依赖按相对路径和实际字节共同计算的指纹，不是只哈希适配器入口文件。确认记录使用同次 preflight 的返回值，不在固定 JSON 中手工复制这些哈希。合法推进到下一版 queue 时仍需满足 `delegation.md` 的历史段 `reuse`、顺序和哈希闭合条件，不能用续跑名义更换 provider 或执行依赖。
 
 ## 统一适配器接口
 
@@ -52,10 +52,12 @@ run-state 必须完整保存这些工具计算出的绑定，并与当次固定 
 ```python
 PROVIDER_ID = "<registered-id>"
 ADAPTER_VERSION = "<adapter-version>"
+EXECUTION_DEPENDENCY_FILES = ("relative/dependency.py", ...)
 
 load_config(path) -> dict
 prompt_markers(prompt, records) -> dict
-verify_task_inputs(task_file, *, prompt_sha256, expected_inputs) -> None
+verify_task_inputs(task_file, *, config, entry, images, audio,
+                   prompt_file, output) -> None
 submit_segment(*, config, entry, images, audio,
                prompt_file, task_file, output) -> dict
 poll_segment(*, task_file, output, timeout, interval,
@@ -64,9 +66,10 @@ poll_segment(*, task_file, output, timeout, interval,
 
 职责边界：
 
+- `EXECUTION_DEPENDENCY_FILES` 只声明该适配器正常固定执行链实际共享的 Skill 内相对源码路径；适配器入口文件自动纳入同一指纹，项目 JSON 不能增删这份清单。
 - `load_config` 校验 provider 配置并拒绝文件内凭证。
 - `prompt_markers` 核对已编译 Prompt 的媒体标记与实际记录；模型创作规则仍由通用流程拥有。
-- `verify_task_inputs` 在已有任务恢复前核对 Prompt、真实输入和哈希，防止把其他任务套到当前请求。
+- `verify_task_inputs` 在已有任务恢复前用与提交共用的请求构造参数离线核对完整原请求：config/workflow、base URL/view path、H3 mode、秒数、画幅、分辨率、Prompt SHA-256、完整参数 SHA-256、输出路径，以及每个图片/音频槽位的顺序、真实路径和 SHA-256。只比较 Prompt 和媒体数组不足以证明同一请求；该核验不得产生新 POST。
 - `submit_segment` 只提交传入的一个已授权片段；每个任务文件最多一次真实提交。
 - `poll_segment` 恢复原任务、查询、下载和客观媒体校验。`resumed=True` 表示跨进程已有任务，不能当成刚提交任务处理。
 - 两个执行结果统一提供 `task_id`；provider 自己的 ID 可留在其任务文件，串行器不依赖 `prompt_id`、实例 UUID 或云平台状态名。
@@ -98,11 +101,13 @@ AutoDL 的电源授权、健康门、退出码和 stopped 对账只在 `video-pr
 
 ## 新增第二种 Provider
 
-新增 provider 时只增加：
+新增 provider 时，适配器层至少增加：
 
 1. 一个实现上述接口的适配器模块。
 2. 注册表中的一条固定 ID、支持协议和文档映射。
 3. `references/video-providers/<provider>.md`，完整说明其配置、凭证、提交、恢复、错误分类及可选电源生命周期。
 4. 离线测试：精确选择、未知 ID 拒绝、协议/版本/哈希失配拒绝、串行器仅经统一接口调用、恢复路径无生成 POST。
+
+当前固定入口只实现了 AutoDL 的受管电源生命周期。新 provider 若采用本地、托管 API 或其他生命周期，还必须在固定入口和本地运行文档中实现并测试真实的按 provider 路由；不得把它送进 `autodl_instance.py run-managed`，也不得伪造 AutoDL 实例或 `stopped` 状态。
 
 不得为接入新 provider 修改剧本、分镜、Prompt 编译、真实尾帧接力或交付规则。若新 provider 不支持当前模型或必需模态，必须在预检停止，不得删减输入或静默换模型来适配它。
